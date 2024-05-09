@@ -291,15 +291,6 @@ def ajax_check_email_verified(g_creationSessionID,cookie_str,session,eamil, pwd)
     start_time = time.time()
     verfy = False
     while True:
-        # {
-        #     "success": 36,
-        #     "has_existing_account": 0,
-        #     "steam_china_account": 0,
-        #     "pw_account": 0,
-        #     "global_account": 0,
-        #     "guest": 0,
-        #     "guest_refresh": null
-        # }
         if time.time() - start_time > 180:  # 超过3分钟退出循环
             break
         response = session.post(url, data=data,headers=ap_headers)
@@ -340,17 +331,17 @@ def ajax_check_email_verified(g_creationSessionID,cookie_str,session,eamil, pwd)
             time.sleep(5)
 
 def imap_verfy(email,password,session):
-    url = 'http://103.146.158.12/api/controller.php'  # 替换为实际的 PHP 接口地址
+    url = ''  
     # 设置请求参数
     data = {
         'fun': 'imap_read',
-        'imap_ip': '103.146.158.12',
+        'imap_ip': '',
         'username': email,
         'password': password,
         'port': '143',
         'mbox_id': '0',
         'delete': '0',
-        'imap_key': 'imap_66558898Eaa'
+        'imap_key': ''
     }
     # 最大尝试次数
     max_attempts = 6
@@ -639,8 +630,6 @@ email_url = config_data['email_url']
 proxy_queue = queue.Queue()
 for proxy_ip in proxy_ips:
     proxy_queue.put(proxy_ip)
-
-# imap_verfy_email_url('4SCAT6G01@broky.fun','0JNZYJXX',requests.session())
 
 # 启动任务
 start_tasks()
