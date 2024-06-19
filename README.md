@@ -1,5 +1,10 @@
 # SteamRegister
 steam注册机，业余写手靠ai完成，注册成本主要来源人机识别和代理ip。
-使用需要注意邮件验证部分，imap_verfiy 或者imap_verfy_email_url，自建邮局有接口的可以用imap_verfy，其他使用imap_verfy_email_url。
+
+注册的国家是代理ip的地址，ip池地址不对注册的国家也可能不对，充卡时要注意。
+
+使注意邮件验证部分imap_verfy_email_url，需要自行调试至可用，自建邮局和微软邮箱的imap都测试可用，别的没试过。
+
 代理ip和人机验证的代码需要自行修改匹配
+
 市场上的注册机都是高价而且不好调试，故此通过ai写了个究极简陋版，留给有缘人
