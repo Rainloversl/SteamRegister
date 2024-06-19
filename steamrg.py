@@ -6,8 +6,7 @@ import re
 import string
 import time
 from concurrent.futures import ThreadPoolExecutor
-from email.header import decode_header
-from html import unescape
+from urllib.parse import urlparse, parse_qs
 
 import requests
 from bs4 import BeautifulSoup
@@ -28,7 +27,7 @@ def main(email,paw,proxy_ip,proxy_queue):
         session = requests.Session()
         session.proxies = proxies
         change_ip(proxy_info)
-        time.sleep(10)
+        time.sleep(5)
         cookie_str = "timezoneOffset=28800,0; Steam_Language=english; "
         headers = {
             "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -83,7 +82,7 @@ def main(email,paw,proxy_ip,proxy_queue):
                 retry_count += 1
                 if retry_count < max_retries:
                     change_ip(proxy_info)
-                    time.sleep(20)
+                    time.sleep(5)
                     print("更换ip重试")
                 else:
                     print("最大重试次数，失败邮箱已加入rgerror.txt")
@@ -96,7 +95,6 @@ def main(email,paw,proxy_ip,proxy_queue):
         cookie_str += 'browserid=' + cookies.get('browserid', '') + '; '
         cookie_str += 'steamCountry=' + cookies.get('steamCountry', '') + '; '
         cookie_str += 'sessionid=' + cookies.get('sessionid', '')
-
         print(cookie_str)
         headers = {
             "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -291,6 +289,15 @@ def ajax_check_email_verified(g_creationSessionID,cookie_str,session,eamil, pwd)
     start_time = time.time()
     verfy = False
     while True:
+        # {
+        #     "success": 36,
+        #     "has_existing_account": 0,
+        #     "steam_china_account": 0,
+        #     "pw_account": 0,
+        #     "global_account": 0,
+        #     "guest": 0,
+        #     "guest_refresh": null
+        # }
         if time.time() - start_time > 180:  # 超过3分钟退出循环
             break
         response = session.post(url, data=data,headers=ap_headers)
@@ -324,78 +331,13 @@ def ajax_check_email_verified(g_creationSessionID,cookie_str,session,eamil, pwd)
                 break
             else:
                 print('等待邮箱验证')
-                if imap_verfy(eamil, pwd, session):
+                if imap_verfy_email_url(eamil, pwd, session,g_creationSessionID):
+                    time.sleep(5)
                     verfy = True
                 time.sleep(2)
         else:
             time.sleep(5)
-
-def imap_verfy(email,password,session):
-    url = ''  
-    # 设置请求参数
-    data = {
-        'fun': 'imap_read',
-        'imap_ip': '',
-        'username': email,
-        'password': password,
-        'port': '143',
-        'mbox_id': '0',
-        'delete': '0',
-        'imap_key': ''
-    }
-    # 最大尝试次数
-    max_attempts = 6
-    attempts = 0
-
-    while attempts < max_attempts:
-        response = requests.post(url, data=data)
-        text = response.text
-        date_pattern = r'Date: (.*?)\n'
-        dates = re.findall(date_pattern, text)
-        url_pattern = r'https?://\S+newaccountverification\S+'
-        urls = re.findall(url_pattern, text)
-
-        if dates and urls:
-            mail_data = dates[0].strip()
-            href = urls[0]
-            # print("提取到的链接:", href)
-            break
-        else:
-            print("未能匹配到邮件或链接，重新尝试")
-            attempts += 1
-            time.sleep(10)  # 等待10秒后再次尝试
-
-    if attempts == max_attempts:
-        print("达到最大尝试次数，未能成功获取邮件或链接")
-    headers = {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-        "Cache-Control": "max-age=0",
-        "Connection": "keep-alive",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
-        "^sec-ch-ua": "^\\^Microsoft",
-        "sec-ch-ua-mobile": "?0",
-        "^sec-ch-ua-platform": "^\\^Windows^^^",
-        "Referer": "",
-        "^If-None-Match": "^\\^q1xZB/G+1WQWAESmLBacgbEbWJA=^^^",
-        "If-Modified-Since": "Mon, 01 Apr 2024 15:21:46 GMT"
-    }
-    res = session.get(href, headers=headers)
-    soup = BeautifulSoup(res.content, "html.parser")
-    target_tag = soup.find("div", class_="newaccount_email_verified_text error")
-    if target_tag:
-        print('验证失败')
-        return False
-    else:
-        print("验证完成")
-        return True
-
-def imap_verfy_email_url(email,password,session):
+def imap_verfy_email_url(email,password,session,g_creationSessionID):
     # 最大尝试次数
     max_attempts = 6
     attempts = 0
@@ -403,47 +345,79 @@ def imap_verfy_email_url(email,password,session):
     username = email
     password = password
     # 选择使用的端口，143是普通IMAP，993是安全IMAP
-    use_ssl = False  # True for SSL (993), False for non-SSL (143)
+    # True for SSL (993), False for non-SSL (143)
     imap_port = 993 if use_ssl else 143
-
+    href = ''
     # SSL连接或普通连接
     if use_ssl:
         mail = imaplib.IMAP4_SSL(imap_server, imap_port)
     else:
         mail = imaplib.IMAP4(imap_server, imap_port)
-
-
+    mail.login(username, password)
+    urls = []
     while attempts < max_attempts:
-        # 登录邮箱
-        mail.login(username, password)
         # 选择收件箱
         mail.select("INBOX")
         # 搜索邮件
         status, messages = mail.search(None, "ALL")
-        # 如果没有邮件
-        if not messages[0]:
-            print("No emails found.")
-        else:
-            # 获取第一封邮件的序号
-            first_email_num = messages[0].split()[0]
-            # 获取第一封邮件的纯文本正文
-            status, data = mail.fetch(first_email_num, "(BODY[TEXT])")
-            raw_email = data[0][1]
-            text_body = raw_email.decode("utf-8")
-        # 关闭邮箱连接
-        mail.logout()
-        url_pattern = r'href=3D"([^"]*account/newaccountverification[^"]*)"'
-        urls = re.findall(url_pattern, text_body)
-        if urls:
-            href = urls[0].replace("=3D", "=")
-            href = href.replace("=\r\n", "")
-            print("提取到的链接:", href)
-            break
-        else:
+        if status == "OK":
+            for message_id in messages[0].split():
+                # 获取邮件的纯文本正文
+                status, data = mail.fetch(message_id, "(BODY[TEXT])")
+                if status == "OK":
+                    raw_email = data[0][1]
+                    text_body = raw_email.decode("utf-8")
+                    # 搜索链接
+                    url_pattern = r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\r\n]*\r\n[^\r\n]*\r\n[^\r\n]*\r\n\r\n\r\n'
+                    found_urls = re.findall(url_pattern, text_body)
+                    for url in found_urls:
+                        # 清理URL
+                        cleaned_url = url.replace("=3D", "=").replace("=\r\n", "").replace("\r\n", "")
+                        urls.append(cleaned_url)
+        junk_folder_names = ['Junk', 'Trash', 'Spam', 'Junk Email']
+        junk_name = ''
+        for folder_name in junk_folder_names:
+            try:
+                status, messages = mail.select(folder_name)
+                if status == "OK":
+                    junk_name = folder_name
+                    break
+            except imaplib.IMAP4.error as e:
+                continue
+        if junk_name !='':
+            mail.select(junk_name)  # 垃圾箱的名称可能有所不同，如"Trash"或"Junk Email"
+            status, messages = mail.search(None, "ALL")
+            if status == "OK":
+                for message_id in messages[0].split():
+                    # 获取邮件的纯文本正文
+                    status, data = mail.fetch(message_id, "(BODY[TEXT])")
+                    if status == "OK":
+                        raw_email = data[0][1]
+                        text_body = raw_email.decode("utf-8")
+                        url_pattern = r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\r\n]*\r\n[^\r\n]*\r\n[^\r\n]*\r\n\r\n\r\n'
+                        found_urls = re.findall(url_pattern, text_body)
+                        for url in found_urls:
+                            # 清理URL
+                            cleaned_url = url.replace("=3D", "=").replace("=\r\n", "").replace("\r\n", "")
+                            urls.append(cleaned_url)
+        for url in urls:
+            # 解析URL
+            parsed_url = urlparse(url)
+            # 提取查询字符串
+            query_string = parsed_url.query
+            # 解析查询字符串为字典
+            params = parse_qs(query_string)
+            creationid = params.get('creationid')
+            if creationid[0] == g_creationSessionID:
+                href = url
+                break
+        if href == "":
             print("未能匹配到邮件或链接，重新尝试")
             attempts += 1
-            time.sleep(10)  # 等待10秒后再次尝试
-
+            time.sleep(10)
+        else:
+            break
+    mail.logout()
     if attempts == max_attempts:
         print("达到最大尝试次数，未能成功获取邮件或链接")
     headers = {
@@ -464,15 +438,19 @@ def imap_verfy_email_url(email,password,session):
         "^If-None-Match": "^\\^q1xZB/G+1WQWAESmLBacgbEbWJA=^^^",
         "If-Modified-Since": "Mon, 01 Apr 2024 15:21:46 GMT"
     }
-    res = session.get(href, headers=headers)
-    soup = BeautifulSoup(res.content, "html.parser")
-    target_tag = soup.find("div", class_="newaccount_email_verified_text error")
-    if target_tag:
-        print('验证失败')
-        return False
+    if href != '':
+        res = session.get(href, headers=headers)
+        soup = BeautifulSoup(res.content, "html.parser")
+        target_tag = soup.find("div", class_="newaccount_email_verified_text error")
+        if target_tag:
+            print('验证失败')
+            return False
+        else:
+            print("验证完成")
+            return True
     else:
-        print("验证完成")
-        return True
+        print('验证链接获取失败')
+        return False
 
 def generate_random_account_name(length):
     characters = string.ascii_lowercase + string.digits
@@ -562,7 +540,7 @@ def create_steam_account(accountname, pass_word, lt, g_creationSessionID, g_embe
         response = session.post(url, data=data,headers=ap_headers)
         if response.ok:
             result = response.json()
-            print(result)
+            # print(result)
             save_to_file(accountname,pass_word,eamil, pwd,result['bSuccess'])
         else:
             print('Failed to send request. HTTP Error:', response.status_code)
@@ -591,8 +569,9 @@ def change_ip(proxy_ip):
         # 拆分代理IP的字符串
         parts = proxy_ip.split(':')
         # 获取 sessID 部分的值
-        sessID = parts[2].split('-')[7]
-        replaceip_url = f"http://{parts[0]}:9988/update?tunnelId=1911&sessID={sessID}&password={proxy_ip.split(':')[3]}"
+        match = re.search(r"-sessID-(\w+)", parts[2])
+        sessID = match.group(1)
+        replaceip_url = f"http://{parts[0]}:9988/update?tunnelId=1911&sessID={sessID}&password={parts[3]}"
         res = requests.get(replaceip_url)
         if res.status_code == 200:
             # print(f"IP changed successfully to {proxy_ip}.")
@@ -605,12 +584,22 @@ def change_ip(proxy_ip):
         return False
 
 # 创建 ThreadPoolExecutor 对象，指定最大并发数为10
-executor = ThreadPoolExecutor(max_workers=10)
+config_data = read_config('config.json')
+proxy_ips = config_data['proxy_ips']
+clientKey = config_data['clientKey']
+email_url = config_data['email_url']
+use_ssl = config_data['ssl']
+executornum = config_data['executornum']
+
+proxy_queue = queue.Queue()
+for proxy_ip in proxy_ips:
+    proxy_queue.put(proxy_ip)
+
+executor = ThreadPoolExecutor(max_workers=executornum)
 
 # 模拟任务
 def task(email, password,proxy_ip,proxy_queue):
         main(email, password, proxy_ip,proxy_queue)
-
 
 def start_tasks():
     with open("email_password.txt", "r") as file:
@@ -619,22 +608,7 @@ def start_tasks():
             proxy_ip = get_ip()
             if proxy_ip:
                 executor.submit(task,email,password,proxy_ip,proxy_queue)
-
-
-config_data = read_config('config.json')
-proxy_ips = config_data['proxy_ips']
-clientKey = config_data['clientKey']
-email_url = config_data['email_url']
-
-
-proxy_queue = queue.Queue()
-for proxy_ip in proxy_ips:
-    proxy_queue.put(proxy_ip)
-
 # 启动任务
 start_tasks()
 # 等待所有任务完成
 executor.shutdown(wait=True)
-
-
-
