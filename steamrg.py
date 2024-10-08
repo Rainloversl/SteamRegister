@@ -1,5 +1,6 @@
 import imaplib
 import json
+import poplib
 import queue
 import random
 import re
@@ -12,191 +13,189 @@ import requests
 from bs4 import BeautifulSoup
 
 
-def main(email,paw,proxy_ip,proxy_queue):
-    try:
-        proxy_info = proxy_ip
-        # 解析代理信息
-        proxy_ip, proxy_port, username, password = proxy_info.split(":")
-        # 构建代理URL
-        proxy_url = f"http://{username}:{password}@{proxy_ip}:{proxy_port}"
-        # 设置代理
-        proxies = {
-            "http": proxy_url,
-            "https": proxy_url
-        }
-        session = requests.Session()
-        session.proxies = proxies
-        change_ip(proxy_info)
-        time.sleep(5)
-        cookie_str = "timezoneOffset=28800,0; Steam_Language=english; "
-        headers = {
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-            "priority": "u=0, i",
-            "^sec-ch-ua": "^\\^Microsoft",
-            "sec-ch-ua-mobile": "?0",
-            "^sec-ch-ua-platform": "^\\^Windows^^^",
-            "sec-fetch-dest": "iframe",
-            "sec-fetch-mode": "navigate",
-            "sec-fetch-site": "cross-site",
-            "sec-fetch-user": "?1",
-            "upgrade-insecure-requests": "1",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
-            "Referer": "https://recaptcha.net/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
-            "Accept": "text/css,*/*;q=0.1",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-            "Connection": "keep-alive",
-            "If-Modified-Since": "Sun, 12 Apr 1970 23:39:27 GMT",
-            "^If-None-Match": "^\\^rDHFC8CDRU8A^^^",
-            "Sec-Fetch-Dest": "style",
-            "Sec-Fetch-Mode": "no-cors",
-            "Sec-Fetch-Site": "cross-site",
-            "Origin": "https://store.steampowered.com",
-            "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "^cookie": cookie_str,
-            "origin": "https://store.steampowered.com",
-            "referer": "https://store.steampowered.com/",
-            "x-prototype-version": "1.7",
-            "x-requested-with": "XMLHttpRequest"
-        }
-        url = "https://store.steampowered.com/join/"
-        params = {
-            "": "",
-            "snr": "1_60_4__62"
-        }
-        data = {
-            "count": "1"
-        }
-        max_retries = 5
-        retry_count = 0
-        init_id = None
-        while retry_count < max_retries:
-            try:
-                response = session.get(url, headers=headers, params=params, data=data)
-                soup = BeautifulSoup(response.content, "html.parser")
-                init_id = soup.find("input", {"id": "init_id"})["value"]
-                break  # 如果成功获取了 init_id，则退出循环
-            except Exception:
-                print(f"打开登录界面失败:")
-                retry_count += 1
-                if retry_count < max_retries:
-                    change_ip(proxy_info)
-                    time.sleep(5)
-                    print("更换ip重试")
-                else:
-                    print("最大重试次数，失败邮箱已加入rgerror.txt")
-                    with open('rgerror.txt', 'a', encoding='utf-8') as file:
-                        file.write(f"{email}----{paw}\n")
-                    proxy_queue.put(proxy_info)
-                    return
-        cookies = response.cookies.get_dict()
-        cookie_str = ''
-        cookie_str += 'browserid=' + cookies.get('browserid', '') + '; '
-        cookie_str += 'steamCountry=' + cookies.get('steamCountry', '') + '; '
-        cookie_str += 'sessionid=' + cookies.get('sessionid', '')
-        print(cookie_str)
-        headers = {
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-            "priority": "u=0, i",
-            "^sec-ch-ua": "^\\^Microsoft",
-            "sec-ch-ua-mobile": "?0",
-            "^sec-ch-ua-platform": "^\\^Windows^^^",
-            "sec-fetch-dest": "iframe",
-            "sec-fetch-mode": "navigate",
-            "sec-fetch-site": "cross-site",
-            "sec-fetch-user": "?1",
-            "upgrade-insecure-requests": "1",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
-            "Referer": "https://recaptcha.net/",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
-            "Accept": "text/css,*/*;q=0.1",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-            "Connection": "keep-alive",
-            "If-Modified-Since": "Sun, 12 Apr 1970 23:39:27 GMT",
-            "^If-None-Match": "^\\^rDHFC8CDRU8A^^^",
-            "Sec-Fetch-Dest": "style",
-            "Sec-Fetch-Mode": "no-cors",
-            "Sec-Fetch-Site": "cross-site",
-            "Origin": "https://store.steampowered.com",
-            "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "^cookie": cookie_str,
-            "origin": "https://store.steampowered.com",
-            "referer": "https://store.steampowered.com/",
-            "x-prototype-version": "1.7",
-            "x-requested-with": "XMLHttpRequest"
-        }
-        url = "https://store.steampowered.com/join/refreshcaptcha/"
+def main(email,paw,proxy_info,proxy_queue,retries = 3):
+    main_retry_count = 0
 
-        data = {
-            "count": "1"
-        }
-        response = session.post(url, headers=headers, data=data)
-        response_json = response.json()
-        gid = response_json['gid']
-        s = response_json['s']
-        sitekey = response_json['sitekey']
-        gRecaptchaResponse = get_gRecaptchaResponse(s, sitekey)
-        if gRecaptchaResponse:
+    while main_retry_count < retries:
+        try:
+            # 解析代理信息
+            proxy_ip, proxy_port, username, password = proxy_info.split(":")
+            # 构建代理URL
+            proxy_url = f"http://{username}:{password}@{proxy_ip}:{proxy_port}"
+            # 设置代理
+            proxies = {
+                "http": proxy_url,
+                "https": proxy_url
+            }
+            session = requests.Session()
+            session.proxies = proxies
+            change_ip(proxy_info)
+            cookie_str = "timezoneOffset=28800,0; Steam_Language=english; "
             headers = {
-                "Accept": "*/*",
-                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-                "Connection": "keep-alive",
-                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                "^Cookie": cookie_str,
-                "Origin": "https://store.steampowered.com",
-                "Referer": "https://store.steampowered.com/join/",
-                "Sec-Fetch-Dest": "empty",
-                "Sec-Fetch-Mode": "cors",
-                "Sec-Fetch-Site": "same-origin",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
-                "X-Requested-With": "XMLHttpRequest",
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+                "priority": "u=0, i",
                 "^sec-ch-ua": "^\\^Microsoft",
                 "sec-ch-ua-mobile": "?0",
-                "^sec-ch-ua-platform": "^\\^Windows^^^"
+                "^sec-ch-ua-platform": "^\\^Windows^^^",
+                "sec-fetch-dest": "iframe",
+                "sec-fetch-mode": "navigate",
+                "sec-fetch-site": "cross-site",
+                "sec-fetch-user": "?1",
+                "upgrade-insecure-requests": "1",
+                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+                "Referer": "https://recaptcha.net/",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+                "Accept": "text/css,*/*;q=0.1",
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+                "Connection": "keep-alive",
+                "If-Modified-Since": "Sun, 12 Apr 1970 23:39:27 GMT",
+                "^If-None-Match": "^\\^rDHFC8CDRU8A^^^",
+                "Sec-Fetch-Dest": "style",
+                "Sec-Fetch-Mode": "no-cors",
+                "Sec-Fetch-Site": "cross-site",
+                "Origin": "https://store.steampowered.com",
+                "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "^cookie": cookie_str,
+                "origin": "https://store.steampowered.com",
+                "referer": "https://store.steampowered.com/",
+                "x-prototype-version": "1.7",
+                "x-requested-with": "XMLHttpRequest"
             }
-            url = "https://store.steampowered.com/join/ajaxverifyemail"
+            url = "https://store.steampowered.com/join/"
+            params = {
+                "": "",
+                "snr": "1_60_4__62"
+            }
             data = {
-                "email": email,
-                "captchagid": gid,
-                "captcha_text": gRecaptchaResponse,
-                "elang": '0',
-                "init_id": init_id,
-                "guest": "false"
+                "count": "1"
+            }
+            max_retries = 3
+            retry_count = 0
+            init_id = None
+            while retry_count < max_retries:
+                try:
+                    response = session.get(url, headers=headers, params=params, data=data)
+                    soup = BeautifulSoup(response.content, "html.parser")
+                    init_id = soup.find("input", {"id": "init_id"})["value"]
+                    break  # 如果成功获取了 init_id，则退出循环
+                except Exception:
+                    print(f"打开登录界面失败:")
+                    retry_count += 1
+                    if retry_count < max_retries:
+                        change_ip(proxy_info)
+                        print("更换ip重试")
+                    else:
+                        raise Exception("Get init_id failed.")
+            cookies = response.cookies.get_dict()
+            cookie_str = '; '.join([f"{k}={v}" for k, v in cookies.items()])
+            print(cookie_str)
+            headers = {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+                "priority": "u=0, i",
+                "^sec-ch-ua": "^\\^Microsoft",
+                "sec-ch-ua-mobile": "?0",
+                "^sec-ch-ua-platform": "^\\^Windows^^^",
+                "sec-fetch-dest": "iframe",
+                "sec-fetch-mode": "navigate",
+                "sec-fetch-site": "cross-site",
+                "sec-fetch-user": "?1",
+                "upgrade-insecure-requests": "1",
+                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+                "Referer": "https://recaptcha.net/",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+                "Accept": "text/css,*/*;q=0.1",
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+                "Connection": "keep-alive",
+                "If-Modified-Since": "Sun, 12 Apr 1970 23:39:27 GMT",
+                "^If-None-Match": "^\\^rDHFC8CDRU8A^^^",
+                "Sec-Fetch-Dest": "style",
+                "Sec-Fetch-Mode": "no-cors",
+                "Sec-Fetch-Site": "cross-site",
+                "Origin": "https://store.steampowered.com",
+                "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "^cookie": cookie_str,
+                "origin": "https://store.steampowered.com",
+                "referer": "https://store.steampowered.com/",
+                "x-prototype-version": "1.7",
+                "x-requested-with": "XMLHttpRequest"
+            }
+            url = "https://store.steampowered.com/join/refreshcaptcha/"
+
+            data = {
+                "count": "1"
             }
             response = session.post(url, headers=headers, data=data)
-            if response.json()['success'] == 1:
-                sessionid = response.json()['sessionid']
-                print(sessionid)
-                ajax_check_email_verified(sessionid,cookie_str,session,email,paw)
+            response_json = response.json()
+            gid = response_json['gid']
+            s = response_json['s']
+            sitekey = response_json['sitekey']
+            gRecaptchaResponse = get_gRecaptchaResponse(s, sitekey, session)
+            if gRecaptchaResponse:
+                headers = {
+                    "Accept": "*/*",
+                    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+                    "Connection": "keep-alive",
+                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                    "^Cookie": cookie_str,
+                    "Origin": "https://store.steampowered.com",
+                    "Referer": "https://store.steampowered.com/join/",
+                    "Sec-Fetch-Dest": "empty",
+                    "Sec-Fetch-Mode": "cors",
+                    "Sec-Fetch-Site": "same-origin",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+                    "X-Requested-With": "XMLHttpRequest",
+                    "^sec-ch-ua": "^\\^Microsoft",
+                    "sec-ch-ua-mobile": "?0",
+                    "^sec-ch-ua-platform": "^\\^Windows^^^"
+                }
+                url = "https://store.steampowered.com/join/ajaxverifyemail"
+                data = {
+                    "email": email,
+                    "captchagid": gid,
+                    "captcha_text": gRecaptchaResponse,
+                    "elang": '0',
+                    "init_id": init_id,
+                    "guest": "false"
+                }
+                response = session.post(url, headers=headers, data=data)
+                if response.json()['success'] == 1:
+                    sessionid = response.json()['sessionid']
+                    print(sessionid)
+                    ajax_retry_count = 0
+                    while ajax_retry_count < retries:
+                        try:
+                            ajax_check_email_verified(sessionid, cookie_str, session, email, paw)
+                            break
+                        except Exception as e:
+                            print(f'ajax过程错误{str(e)}')
+                            time.sleep(5)
+                            ajax_retry_count += 1
+                else:
+                    print(response.text)
+                    raise Exception("人机验证失败")
+                print(response.text)
+                session.close()
+                proxy_queue.put(proxy_info)
+                break
             else:
+                raise Exception("人机验证超时")
+        except Exception as e:
+            print(f"Error in main: {str(e)}")
+            main_retry_count += 1
+            if main_retry_count >= retries:
+                session.close()
+                proxy_queue.put(proxy_info)
                 with open('rgerror.txt', 'a', encoding='utf-8') as file:
                     file.write(f"{email}----{paw}\n")
-            print(response.text)
-            session.close()
-            proxy_queue.put(proxy_info)
-            return
-        else:
-            print('人机验证超时')
-            session.close()
-            proxy_queue.put(proxy_info)
-            with open('rgerror.txt', 'a', encoding='utf-8') as file:
-                file.write(f"{email}----{paw}\n")
-            return
-    except Exception as e:
-        session.close()
-        proxy_queue.put(proxy_info)
-        with open('rgerror.txt', 'a', encoding='utf-8') as file:
-            file.write(f"{email}----{paw}\n")
-        return  # 结束当前调用
 
 def read_config(filename):
     with open(filename, 'r') as f:
         config = json.load(f)
     return config
 
-def get_gRecaptchaResponse(s, sitekey):
+def get_gRecaptchaResponse(s, sitekey,session):
     createTask_url = "https://api.ez-captcha.com/createTask"
     headers = {
         'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
@@ -224,9 +223,9 @@ def get_gRecaptchaResponse(s, sitekey):
         "clientKey": clientKey,
         "taskId": taskId
     })
-    return get_task_result(getTaskResult_url, headers, payload)
+    return get_task_result(getTaskResult_url, headers, payload,session)
 
-def get_task_result(getTaskResult_url, headers, payload):
+def get_task_result(getTaskResult_url, headers, payload,session):
     max_retries = 12  # 最大重试次数
     retry_delay = 10  # 重试间隔时间（秒）
 
@@ -337,6 +336,7 @@ def ajax_check_email_verified(g_creationSessionID,cookie_str,session,eamil, pwd)
                 time.sleep(2)
         else:
             time.sleep(5)
+
 def imap_verfy_email_url(email,password,session,g_creationSessionID):
     # 最大尝试次数
     max_attempts = 6
@@ -349,6 +349,7 @@ def imap_verfy_email_url(email,password,session,g_creationSessionID):
     imap_port = 993 if use_ssl else 143
     href = ''
     # SSL连接或普通连接
+    time.sleep(2)
     if use_ssl:
         mail = imaplib.IMAP4_SSL(imap_server, imap_port)
     else:
@@ -414,7 +415,7 @@ def imap_verfy_email_url(email,password,session,g_creationSessionID):
         if href == "":
             print("未能匹配到邮件或链接，重新尝试")
             attempts += 1
-            time.sleep(10)
+            time.sleep(5)
         else:
             break
     mail.logout()
@@ -438,6 +439,95 @@ def imap_verfy_email_url(email,password,session,g_creationSessionID):
         "^If-None-Match": "^\\^q1xZB/G+1WQWAESmLBacgbEbWJA=^^^",
         "If-Modified-Since": "Mon, 01 Apr 2024 15:21:46 GMT"
     }
+    if href != '':
+        res = session.get(href, headers=headers)
+        soup = BeautifulSoup(res.content, "html.parser")
+        target_tag = soup.find("div", class_="newaccount_email_verified_text error")
+        if target_tag:
+            print('验证失败')
+            return False
+        else:
+            print("验证完成")
+            return True
+    else:
+        print('验证链接获取失败')
+        return False
+
+def pop_verify_email_url(email, password, session, g_creationSessionID):
+    # 最大尝试次数
+    max_attempts = 6
+    attempts = 0
+    pop3_server = email_url  # 应该改为具体的POP3服务器地址
+    username = email
+    password = password
+    # 选择使用的端口，110是普通POP3，995是安全POP3
+    pop3_port = 995 if use_ssl else 110
+    href = ''
+    urls = []
+    while attempts < max_attempts:
+        if use_ssl:
+            mail = poplib.POP3_SSL(pop3_server, pop3_port)
+        else:
+            mail = poplib.POP3(pop3_server, pop3_port)
+        mail.user(username)
+        mail.pass_(password)
+        # 获取邮件列表
+        num_messages = len(mail.list()[1])
+
+        for i in range(num_messages):
+            # 获取邮件内容
+            raw_email = b'\n'.join(mail.retr(i + 1)[1])
+            text_body = raw_email.decode("utf-8")
+
+            # 搜索链接
+            url_pattern = r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\n]*\n[^\n]*\n[^\n]*\n\n\n'
+            found_urls = re.findall(url_pattern, text_body)
+            for url in found_urls:
+                # 清理URL
+                cleaned_url = url.replace("=3D", "=").replace("=\n", "").replace("\n", "")
+                urls.append(cleaned_url)
+
+        # 检查是否有正确的URL
+        for url in urls:
+            # 解析URL
+            parsed_url = urlparse(url)
+            # 提取查询字符串
+            query_string = parsed_url.query
+            # 解析查询字符串为字典
+            params = parse_qs(query_string)
+            creationid = params.get('creationid')
+            if creationid and creationid[0] == g_creationSessionID:
+                href = url
+                break
+
+        if href == "":
+            print("未能匹配到邮件或链接，重新尝试")
+            attempts += 1
+            time.sleep(5)
+        else:
+            break
+    mail.quit()
+    if attempts == max_attempts:
+        print("达到最大尝试次数，未能成功获取邮件或链接")
+    headers = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+        "Cache-Control": "max-age=0",
+        "Connection": "keep-alive",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
+        "^sec-ch-ua": "^\\^Microsoft",
+        "sec-ch-ua-mobile": "?0",
+        "^sec-ch-ua-platform": "^\\^Windows^^^",
+        "Referer": "",
+        "^If-None-Match": "^\\^q1xZB/G+1WQWAESmLBacgbEbWJA=^^^",
+        "If-Modified-Since": "Mon, 01 Apr 2024 15:21:46 GMT"
+    }
+
     if href != '':
         res = session.get(href, headers=headers)
         soup = BeautifulSoup(res.content, "html.parser")
@@ -562,7 +652,7 @@ def get_ip():
             return  proxy_ip
         except Exception as e:
             print(f"An error occurred while getting proxy IP: {e}")
-            time.sleep(10)  # 等待一段时间后重试
+            time.sleep(5)  # 等待一段时间后重试
 
 def change_ip(proxy_ip):
     try:
