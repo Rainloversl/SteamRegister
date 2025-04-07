@@ -1,25 +1,66 @@
 # SteamRegister
-steam注册机，业余写手靠ai完成，注册成本主要来源人机识别和代理ip。
 
-注册的国家是代理ip的地址，ip池地址不对注册的国家也可能不对。
+Steam 账号自动注册工具，支持多种邮箱协议和多线程并发注册。
 
-邮件收取部分，目前支持 常规imap，pop3和微软GRAPH
 
-使用方法：
-所有文件都在脚本同级目录
+## 使用方法
 
-config.json 参数填写：
-人机验证平台captcharun 邀请链接：https://captcha.run/sso?inviter=5888a224-d520-4c38-aa71-c8411dd62e8c ，QQ群:961381410 群内有平台提供免费也更专业的协议注册。
-从邀请链接点注册购买谢谢， 平台主页token填入config.json 内的 clientKey
-protocol 邮箱收件方式 ： IMAP ， POP3 ，GRAPH 每个线程执行前会先访问邮箱是否通畅
-ssl：IMAP ，POP3 是否为ssl  大多数为true
-email_url ： 邮箱协议地址  例：imap.gmx.com 
-executornum： 线程数
+### 1. 配置文件准备
 
-代理ip：proxy_ips.txt  
-按https://ipweb.cc/show/4.html教程 导出后修改名称为proxy_ips.txt即可，国家自行试验成功率，别的代理ip同格式也可，平台是captcharun推荐
+所有配置文件需要放在脚本同级目录下：
 
-邮箱 email_password.txt： 
-按----分割即可，GRAPH 填的需要另外两个参数，方法见https://wmemail.com/ 
+- config.json - 基础配置
+- proxy_ips.txt - 代理IP列表
+- email_password.txt - 邮箱账号列表
 
-更新时间：2025.4.8 目前暂时可用。
+### 2. config.json 配置说明
+```json
+{
+    "clientKey": "你的captcha.run token",
+    "protocol": "IMAP/POP3/GRAPH",
+    "ssl": true,
+    "email_url": "imap.gmx.com", 邮箱服务器地址，自行查找
+    "executornum": 10
+}
+```
+
+- clientKey: 人机验证平台token ([captcha.run 邀请注册](https://captcha.run/sso?inviter=5888a224-d520-4c38-aa71-c8411dd62e8c))
+- protocol: 邮箱协议类型
+- ssl: IMAP/POP3 是否使用 SSL
+- email_url: 邮箱服务器地址
+- executornum: 并发线程数
+
+### 3. 代理IP配置
+
+proxy_ips.txt 格式:
+```
+ip:port:username:password
+```
+推荐使用 [ipweb.cc](https://ipweb.cc/show/4.html) 导出的格式
+
+### 4. 邮箱配置
+
+email_password.txt 格式:
+
+普通邮箱:
+```
+email----password
+```
+
+Graph API邮箱:
+```
+email----password----client_id----refresh_token
+```
+Microsoft Graph API 参数获取方法参考: [wmemail.com](https://wmemail.com/)
+
+## 注意事项
+
+1. 注册国家由代理IP决定
+2. 每个线程执行前会验证邮箱可用性
+3. 人机验证使用 captcha.run 平台服务
+- QQ群: 961381410 (captcha.run 官方群) 群内有captcha.run 提供的免费且专业版
+
+## 免责声明
+
+本工具仅供学习研究使用，请遵守相关服务条款和法律法规。
+
