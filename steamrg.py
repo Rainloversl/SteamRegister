@@ -1,5 +1,6 @@
 import imaplib
 import json
+import os
 import poplib
 import queue
 import random
@@ -13,256 +14,235 @@ import requests
 from bs4 import BeautifulSoup
 
 
-def main(email,paw,proxy_info,proxy_queue,retries = 3):
+def main(email_data, retries = 30):
     main_retry_count = 0
-
+    email = email_data['email']
+    paw = email_data['password']
+    
+    if not is_email_valid(email_data):
+        print(f"邮箱 {email} 不可用，线程结束")
+        error_path = os.path.join(script_dir, 'rgerror.txt')
+        with open(error_path, 'a', encoding='utf-8') as file:
+            file.write(f"{email}----{paw}\n")
+        return
+    
     while main_retry_count < retries:
         try:
-            # 解析代理信息
+            proxy_info = get_ip()
             proxy_ip, proxy_port, username, password = proxy_info.split(":")
-            # 构建代理URL
             proxy_url = f"http://{username}:{password}@{proxy_ip}:{proxy_port}"
-            # 设置代理
             proxies = {
                 "http": proxy_url,
                 "https": proxy_url
             }
             session = requests.Session()
             session.proxies = proxies
-            change_ip(proxy_info)
             cookie_str = "timezoneOffset=28800,0; Steam_Language=english; "
-            headers = {
-                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-                "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-                "priority": "u=0, i",
-                "^sec-ch-ua": "^\\^Microsoft",
-                "sec-ch-ua-mobile": "?0",
-                "^sec-ch-ua-platform": "^\\^Windows^^^",
-                "sec-fetch-dest": "iframe",
-                "sec-fetch-mode": "navigate",
-                "sec-fetch-site": "cross-site",
-                "sec-fetch-user": "?1",
-                "upgrade-insecure-requests": "1",
-                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
-                "Referer": "https://recaptcha.net/",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
-                "Accept": "text/css,*/*;q=0.1",
-                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-                "Connection": "keep-alive",
-                "If-Modified-Since": "Sun, 12 Apr 1970 23:39:27 GMT",
-                "^If-None-Match": "^\\^rDHFC8CDRU8A^^^",
-                "Sec-Fetch-Dest": "style",
-                "Sec-Fetch-Mode": "no-cors",
-                "Sec-Fetch-Site": "cross-site",
-                "Origin": "https://store.steampowered.com",
-                "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-                "^cookie": cookie_str,
-                "origin": "https://store.steampowered.com",
-                "referer": "https://store.steampowered.com/",
-                "x-prototype-version": "1.7",
-                "x-requested-with": "XMLHttpRequest"
-            }
-            url = "https://store.steampowered.com/join/"
-            params = {
-                "": "",
-                "snr": "1_60_4__62"
-            }
-            data = {
-                "count": "1"
-            }
-            max_retries = 3
-            retry_count = 0
-            init_id = None
-            while retry_count < max_retries:
-                try:
-                    response = session.get(url, headers=headers, params=params, data=data)
-                    soup = BeautifulSoup(response.content, "html.parser")
-                    init_id = soup.find("input", {"id": "init_id"})["value"]
-                    break  # 如果成功获取了 init_id，则退出循环
-                except Exception:
-                    print(f"打开登录界面失败:")
-                    retry_count += 1
-                    if retry_count < max_retries:
-                        change_ip(proxy_info)
-                        print("更换ip重试")
-                    else:
-                        raise Exception("Get init_id failed.")
-            cookies = response.cookies.get_dict()
-            cookie_str = '; '.join([f"{k}={v}" for k, v in cookies.items()])
-            print(cookie_str)
-            headers = {
-                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-                "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-                "priority": "u=0, i",
-                "^sec-ch-ua": "^\\^Microsoft",
-                "sec-ch-ua-mobile": "?0",
-                "^sec-ch-ua-platform": "^\\^Windows^^^",
-                "sec-fetch-dest": "iframe",
-                "sec-fetch-mode": "navigate",
-                "sec-fetch-site": "cross-site",
-                "sec-fetch-user": "?1",
-                "upgrade-insecure-requests": "1",
-                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
-                "Referer": "https://recaptcha.net/",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
-                "Accept": "text/css,*/*;q=0.1",
-                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-                "Connection": "keep-alive",
-                "If-Modified-Since": "Sun, 12 Apr 1970 23:39:27 GMT",
-                "^If-None-Match": "^\\^rDHFC8CDRU8A^^^",
-                "Sec-Fetch-Dest": "style",
-                "Sec-Fetch-Mode": "no-cors",
-                "Sec-Fetch-Site": "cross-site",
-                "Origin": "https://store.steampowered.com",
-                "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-                "^cookie": cookie_str,
-                "origin": "https://store.steampowered.com",
-                "referer": "https://store.steampowered.com/",
-                "x-prototype-version": "1.7",
-                "x-requested-with": "XMLHttpRequest"
-            }
-            url = "https://store.steampowered.com/join/refreshcaptcha/"
+            token,gid = get_gRecaptchaResponse(proxy_ip,proxy_port,username,password)
+            
+            if not gid:
+                raise Exception("人机验证失败")
+            
+            init_id = get_init_id(session,cookie_str)
 
-            data = {
-                "count": "1"
-            }
-            response = session.post(url, headers=headers, data=data)
-            response_json = response.json()
-            gid = response_json['gid']
-            s = response_json['s']
-            sitekey = response_json['sitekey']
-            gRecaptchaResponse = get_gRecaptchaResponse(s, sitekey, session)
-            if gRecaptchaResponse:
-                headers = {
-                    "Accept": "*/*",
-                    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-                    "Connection": "keep-alive",
-                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                    "^Cookie": cookie_str,
-                    "Origin": "https://store.steampowered.com",
-                    "Referer": "https://store.steampowered.com/join/",
-                    "Sec-Fetch-Dest": "empty",
-                    "Sec-Fetch-Mode": "cors",
-                    "Sec-Fetch-Site": "same-origin",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
-                    "X-Requested-With": "XMLHttpRequest",
-                    "^sec-ch-ua": "^\\^Microsoft",
-                    "sec-ch-ua-mobile": "?0",
-                    "^sec-ch-ua-platform": "^\\^Windows^^^"
-                }
-                url = "https://store.steampowered.com/join/ajaxverifyemail"
-                data = {
-                    "email": email,
-                    "captchagid": gid,
-                    "captcha_text": gRecaptchaResponse,
-                    "elang": '0',
-                    "init_id": init_id,
-                    "guest": "false"
-                }
-                response = session.post(url, headers=headers, data=data)
-                if response.json()['success'] == 1:
-                    sessionid = response.json()['sessionid']
-                    print(sessionid)
-                    ajax_retry_count = 0
-                    while ajax_retry_count < retries:
-                        try:
-                            ajax_check_email_verified(sessionid, cookie_str, session, email, paw)
-                            break
-                        except Exception as e:
-                            print(f'ajax过程错误{str(e)}')
-                            time.sleep(5)
-                            ajax_retry_count += 1
-                else:
-                    print(response.text)
-                    raise Exception("人机验证失败")
-                print(response.text)
-                session.close()
-                proxy_queue.put(proxy_info)
-                break
-            else:
-                raise Exception("人机验证超时")
+            if not init_id:
+                raise Exception("获取init_id失败")
+
+            cookies = session.cookies.get_dict()
+            cookie_str = '; '.join([f"{k}={v}" for k, v in cookies.items()])
+
+            response = ajaxverifyemail(session, cookie_str, email, token, gid,init_id)
+            print(response.text)
+            if response.json()['success'] != 1:
+                raise Exception("人机验证未通过")
+            
+            sessionid = response.json()['sessionid']
+            ajax_retry_count = 0
+            while ajax_retry_count < 3:
+                try:
+                    ajax_check_email_verified(sessionid, cookie_str, session, email_data)
+                    break
+                except Exception as e:
+                    time.sleep(5)
+                    ajax_retry_count += 1
+            session.close()    
+            success_proxy_queue.put(proxy_info)
+            break
         except Exception as e:
-            print(f"Error in main: {str(e)}")
+            print(f'{email},{str(e)}')
+            session.close()
+            proxy_queue.put(proxy_info)
             main_retry_count += 1
+            time.sleep(2)
             if main_retry_count >= retries:
-                session.close()
-                proxy_queue.put(proxy_info)
+                print(f"{email}线程超时")
                 with open('rgerror.txt', 'a', encoding='utf-8') as file:
                     file.write(f"{email}----{paw}\n")
 
-def read_config(filename):
-    with open(filename, 'r') as f:
-        config = json.load(f)
-    return config
+def is_email_valid(email_data):
+    try:
+        email = email_data['email']
+        password = email_data['password']
+        if protocol == "IMAP":
+            server = imaplib.IMAP4_SSL(email_url) if use_ssl else imaplib.IMAP4(email_url)
+            server.login(email, password)
+            server.logout()
+        elif protocol == "POP3":
+            server = poplib.POP3_SSL(email_url) if use_ssl else poplib.POP3(email_url)
+            server.user(email)
+            server.pass_(password)
+            server.quit()
+        elif protocol == "GRAPH":
+            emails = graph_get_email(email_data)
+            if emails is None:
+                raise ValueError("获取邮件失败")
+        else:
+            raise ValueError("Unsupported protocol. Use 'IMAP', 'POP3' or 'GRAPH'.")
+        return True
+    except Exception as e:
+        print(f"邮箱验证失败: {e}")
+        return False
 
-def get_gRecaptchaResponse(s, sitekey,session):
-    createTask_url = "https://api.ez-captcha.com/createTask"
+def ajaxverifyemail(session, cookie_str, email, token, gid, init_id):
     headers = {
-        'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
+        "Accept": "*/*",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+        "Connection": "keep-alive",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "^Cookie": cookie_str,
+        "Origin": "https://store.steampowered.com",
+        "Referer": "https://store.steampowered.com/join/",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+        "X-Requested-With": "XMLHttpRequest",
+        "^sec-ch-ua": "^\\^Microsoft",
+        "sec-ch-ua-mobile": "?0",
+        "^sec-ch-ua-platform": "^\\^Windows^^^"
+    }
+    url = "https://store.steampowered.com/join/ajaxverifyemail"
+    data = {
+        "email": email,
+        "captchagid": gid,
+        "captcha_text": token,
+        "elang": '0',
+        "init_id": init_id,
+        "guest": "false"
+    }
+    response = session.post(url, headers=headers, data=data)
+    return response
+
+def get_init_id(session, cookie_str):
+    headers = {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+        "priority": "u=0, i",
+        "^sec-ch-ua": "^\\^Microsoft",
+        "sec-ch-ua-mobile": "?0",
+        "^sec-ch-ua-platform": "^\\^Windows^^^",
+        "sec-fetch-dest": "iframe",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+        "Accept": "text/css,*/*;q=0.1",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+        "Connection": "keep-alive",
+        "If-Modified-Since": "Sun, 12 Apr 1970 23:39:27 GMT",
+        "^If-None-Match": "^\\^rDHFC8CDRU8A^^^",
+        "Sec-Fetch-Dest": "style",
+        "Sec-Fetch-Mode": "no-cors",
+        "Sec-Fetch-Site": "cross-site",
+        "Origin": "https://store.steampowered.com",
+        "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "cookie": cookie_str,
+        "origin": "https://store.steampowered.com",
+        "referer": "https://store.steampowered.com/",
+        "x-prototype-version": "1.7",
+        "x-requested-with": "XMLHttpRequest"
+    }
+    url = "https://store.steampowered.com/join/"
+    params = {
+        "snr": "1_60_4__62"
+    }
+    max_retries = 3
+    retry_count = 0
+
+    while retry_count < max_retries:
+        try:
+            response = session.get(url, headers=headers, params=params)
+            response.raise_for_status() 
+            soup = BeautifulSoup(response.content, "html.parser")
+            init_id = soup.find("input", {"id": "init_id"})
+            if init_id and init_id.get("value"):
+                return init_id["value"]
+            else:
+                raise ValueError("init_id not found in the response.")
+        except Exception as e:
+            retry_count += 1
+            if retry_count < max_retries:
+                time.sleep(10)
+                print("Retrying")
+            else:
+                raise Exception("Failed to retrieve init_id after multiple attempts.")
+    return None
+
+
+def get_gRecaptchaResponse(proxy_ip,proxy_port,username,password):
+    createTask_url = "https://api.captcha.run/v2/tasks"
+    headers = {
+        'Authorization': clientKey,
         'Content-Type': 'application/json'
     }
 
     payload = json.dumps({
-        "clientKey": clientKey,
-        "task": {
-            "websiteURL": "https://store.steampowered.com/join",
-            "websiteKey": sitekey,
-            "type": "ReCaptchaV2SEnterpriseTaskProxyless",
-            "isInvisible": False,
-            's': s
-        }
+        "captchaType": "HCaptchaSteam",
+        "host":proxy_ip,
+        "port":proxy_port,
+        "login":username,
+        "password":password
     })
 
-    response = requests.request("POST", createTask_url, headers=headers, data=payload)
-    response_json = response.json()
-    taskId = response_json['taskId']
+    response = requests.post(createTask_url, headers=headers, data=payload)
+    taskId = response.json()['taskId']
 
-    getTaskResult_url = "https://api.ez-captcha.com/getTaskResult"
+    getTaskResult_url = "https://api.captcha.run/v2/tasks/"+taskId
 
-    payload = json.dumps({
-        "clientKey": clientKey,
-        "taskId": taskId
-    })
-    return get_task_result(getTaskResult_url, headers, payload,session)
+    return get_task_result(getTaskResult_url, headers)
 
-def get_task_result(getTaskResult_url, headers, payload,session):
-    max_retries = 12  # 最大重试次数
-    retry_delay = 10  # 重试间隔时间（秒）
+def get_task_result(getTaskResult_url, headers):
+    max_retries = 24  # 最大重试次数
+    retry_delay = 5  # 重试间隔时间（秒）
 
     for _ in range(max_retries):
         # 发送请求
-        response = requests.post(getTaskResult_url, headers=headers, data=payload)
+        response = requests.get(getTaskResult_url, headers=headers)
 
         try:
             response_json = response.json()
-            errorId = response_json.get('errorId')
             status = response_json.get('status')
 
-            if errorId == 1:
-                print(response_json.get('errorDescription'))
-                return None
-
-            if status == 'ready':
-                print('人机验证完成')
-                return response_json.get('solution', {}).get('gRecaptchaResponse')
-
-            elif status == 'processing':
+            if status == 'Fail':
+                return None,None
+            if status == 'Success':
+                resp = response.json().get('response')
+                return resp.get('token'),resp.get('gid')
+            elif status == 'Working':
                 time.sleep(retry_delay)
                 continue
-
             else:
                 print("Unexpected status:", status)
-                return None
-
+                return None,None
         except Exception as e:
             print("Error occurred:", str(e))
             time.sleep(retry_delay)
             continue
-
     print("Max retries reached. Exiting.")
-    return None
+    return None,None
 
-def ajax_check_email_verified(g_creationSessionID,cookie_str,session,eamil, pwd):
+def ajax_check_email_verified(g_creationSessionID,cookie_str,session,email_data):
     if not g_creationSessionID:
         return
 
@@ -288,15 +268,7 @@ def ajax_check_email_verified(g_creationSessionID,cookie_str,session,eamil, pwd)
     start_time = time.time()
     verfy = False
     while True:
-        # {
-        #     "success": 36,
-        #     "has_existing_account": 0,
-        #     "steam_china_account": 0,
-        #     "pw_account": 0,
-        #     "global_account": 0,
-        #     "guest": 0,
-        #     "guest_refresh": null
-        # }
+
         if time.time() - start_time > 180:  # 超过3分钟退出循环
             break
         response = session.post(url, data=data,headers=ap_headers)
@@ -326,120 +298,190 @@ def ajax_check_email_verified(g_creationSessionID,cookie_str,session,eamil, pwd)
                             break  # 如果密码可用，跳出循环
                         else:
                             print("密码不可用，重新生成新的密码")
-                create_steam_account(account_name, password, 1, g_creationSessionID, 0, False,cookie_str,session,eamil, pwd)
+                create_steam_account(account_name, password, 1, g_creationSessionID, 0, False,cookie_str,session,email_data)
                 break
             else:
                 print('等待邮箱验证')
-                if imap_verfy_email_url(eamil, pwd, session,g_creationSessionID):
+                if fetch_email_verification_url(email_data, session,g_creationSessionID):
                     time.sleep(5)
                     verfy = True
                 time.sleep(2)
         else:
             time.sleep(5)
 
-def imap_verfy_email_url(email,password,session,g_creationSessionID):
-    # 最大尝试次数
+def get_access_token(email_data):
+    data = {
+        'client_id': email_data['client_id'],
+        'refresh_token': email_data['refresh_token'],
+        'grant_type': 'refresh_token',
+        'scope': 'https://graph.microsoft.com/.default',
+    }
+    response = requests.post('https://login.microsoftonline.com/consumers/oauth2/v2.0/token', data=data)
+    if response.status_code == 200:
+        access_token = response.json().get('access_token')
+        if access_token:
+            return access_token
+
+def graph_get_email(email_data):
+    try:
+        access_token = get_access_token(email_data)
+        if not access_token:
+            return None
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'application/json'
+        }
+
+        params = {
+            '$top': 5,  # 限制返回数量
+            '$select': 'subject,body,receivedDateTime,from,hasAttachments',  # 选择需要的字段
+            '$orderby': 'receivedDateTime desc'  # 按接收时间降序排序
+        }
+
+        response = requests.get('https://graph.microsoft.com/v1.0/me/messages', headers=headers)
+        if response.status_code == 200:
+            emails = response.json().get('value', [])
+            return emails 
+        else:
+            print(f"获取邮件失败: {response.status_code}")
+            return None
+    except Exception as e:
+        return None
+    
+def fetch_email_verification_url(email_data, session, g_creationSessionID):
     max_attempts = 6
     attempts = 0
-    imap_server = email_url
-    username = email
-    password = password
-    # 选择使用的端口，143是普通IMAP，993是安全IMAP
-    # True for SSL (993), False for non-SSL (143)
-    imap_port = 993 if use_ssl else 143
     href = ''
-    # SSL连接或普通连接
-    time.sleep(2)
-    if use_ssl:
-        mail = imaplib.IMAP4_SSL(imap_server, imap_port)
-    else:
-        mail = imaplib.IMAP4(imap_server, imap_port)
-    mail.login(username, password)
     urls = []
+    
     while attempts < max_attempts:
-        # 选择收件箱
-        mail.select("INBOX")
-        # 搜索邮件
-        status, messages = mail.search(None, "ALL")
-        if status == "OK":
-            for message_id in messages[0].split():
-                # 获取邮件的纯文本正文
-                status, data = mail.fetch(message_id, "(BODY[TEXT])")
-                if status == "OK":
-                    raw_email = data[0][1]
-                    text_body = raw_email.decode("utf-8")
-                    # 搜索链接
-                    url_pattern = r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\r\n]*\r\n[^\r\n]*\r\n[^\r\n]*\r\n\r\n\r\n'
-                    found_urls = re.findall(url_pattern, text_body)
-                    for url in found_urls:
-                        # 清理URL
-                        cleaned_url = url.replace("=3D", "=").replace("=\r\n", "").replace("\r\n", "")
-                        urls.append(cleaned_url)
-        junk_folder_names = ['Junk', 'Trash', 'Spam', 'Junk Email']
-        junk_name = ''
-        for folder_name in junk_folder_names:
-            try:
-                status, messages = mail.select(folder_name)
-                if status == "OK":
-                    junk_name = folder_name
-                    break
-            except imaplib.IMAP4.error as e:
-                continue
-        if junk_name !='':
-            mail.select(junk_name)  # 垃圾箱的名称可能有所不同，如"Trash"或"Junk Email"
-            status, messages = mail.search(None, "ALL")
-            if status == "OK":
-                for message_id in messages[0].split():
-                    # 获取邮件的纯文本正文
-                    status, data = mail.fetch(message_id, "(BODY[TEXT])")
+        try:
+            if protocol == "GRAPH":
+                # 获取 Microsoft Graph 邮件
+                emails = graph_get_email(email_data)
+                if emails:
+                    for email in emails:
+                        body = email.get('body', {}).get('content', '')
+                        # 搜索验证链接
+                        url_pattern = r'href="(https://store\.steampowered\.com/account/newaccountverification\?[^"]+)"'
+                        found_urls = re.findall(url_pattern, body)
+                        for url in found_urls:
+                            # 处理 HTML 实体编码
+                            cleaned_url = url.replace('&amp;', '&')
+                            urls.append(cleaned_url)
+            else:
+                email = email_data['email']
+                password = email_data['password']
+                if protocol == "IMAP":
+                    mail = imaplib.IMAP4_SSL(email_url) if use_ssl else imaplib.IMAP4(email_url)
+                    mail.login(email, password)
+                    mail.select("INBOX")
+                    # 搜索邮件
+                    status, messages = mail.search(None, "ALL")
                     if status == "OK":
-                        raw_email = data[0][1]
+                        for message_id in messages[0].split():
+                            # 获取邮件的纯文本正文
+                            status, data = mail.fetch(message_id, "(BODY[TEXT])")
+                            if status == "OK":
+                                raw_email = data[0][1]
+                                text_body = raw_email.decode("utf-8")
+                                # 搜索链接
+                                url_pattern = r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\r\n]*\r\n[^\r\n]*\r\n[^\r\n]*\r\n\r\n\r\n'
+                                found_urls = re.findall(url_pattern, text_body)
+                                for url in found_urls:
+                                    # 清理URL
+                                    cleaned_url = url.replace("=3D", "=").replace("=\r\n", "").replace("\r\n", "")
+                                    urls.append(cleaned_url)
+                    junk_folder_names = ['Junk', 'Trash', 'Spam', 'Junk Email']
+                    junk_name = ''
+                    for folder_name in junk_folder_names:
+                        try:
+                            status, messages = mail.select(folder_name)
+                            if status == "OK":
+                                junk_name = folder_name
+                                break
+                        except imaplib.IMAP4.error as e:
+                            continue
+                    if junk_name !='':
+                        mail.select(junk_name)  # 垃圾箱的名称可能有所不同，如"Trash"或"Junk Email"
+                        status, messages = mail.search(None, "ALL")
+                        if status == "OK":
+                            for message_id in messages[0].split():
+                                # 获取邮件的纯文本正文
+                                status, data = mail.fetch(message_id, "(BODY[TEXT])")
+                                if status == "OK":
+                                    raw_email = data[0][1]
+                                    text_body = raw_email.decode("utf-8")
+                                    url_pattern = r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\r\n]*\r\n[^\r\n]*\r\n[^\r\n]*\r\n\r\n\r\n'
+                                    found_urls = re.findall(url_pattern, text_body)
+                                    for url in found_urls:
+                                        # 清理URL
+                                        cleaned_url = url.replace("=3D", "=").replace("=\r\n", "").replace("\r\n", "")
+                                        urls.append(cleaned_url)
+                elif protocol == "POP3":
+                    mail = poplib.POP3_SSL(email_url) if use_ssl else poplib.POP3(email_url)
+                    mail.user(email)
+                    mail.pass_(password)
+                    num_messages = len(mail.list()[1])
+                    for i in range(num_messages):
+                        raw_email = b'\n'.join(mail.retr(i + 1)[1])
                         text_body = raw_email.decode("utf-8")
-                        url_pattern = r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\r\n]*\r\n[^\r\n]*\r\n[^\r\n]*\r\n\r\n\r\n'
+                        url_pattern = r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\n]*\n[^\n]*\n[^\n]*\n\n\n'
                         found_urls = re.findall(url_pattern, text_body)
                         for url in found_urls:
-                            # 清理URL
-                            cleaned_url = url.replace("=3D", "=").replace("=\r\n", "").replace("\r\n", "")
+                            cleaned_url = url.replace("=3D", "=").replace("=\n", "").replace("\n", "")
                             urls.append(cleaned_url)
-        for url in urls:
-            # 解析URL
-            parsed_url = urlparse(url)
-            # 提取查询字符串
-            query_string = parsed_url.query
-            # 解析查询字符串为字典
-            params = parse_qs(query_string)
-            creationid = params.get('creationid')
-            if creationid[0] == g_creationSessionID:
-                href = url
+
+            # 检查是否有正确的 URL
+            for url in urls:
+                parsed_url = urlparse(url)
+                query_string = parsed_url.query
+                params = parse_qs(query_string)
+                creationid = params.get('creationid')
+                if creationid and creationid[0] == g_creationSessionID:
+                    href = url
+                    break
+
+            if href:
                 break
-        if href == "":
-            print("未能匹配到邮件或链接，重新尝试")
+            else:
+                print("未能匹配到邮件或链接，重新尝试")
+                attempts += 1
+                time.sleep(5)
+        except Exception as e:
+            print(f"邮件处理错误: {e}")
             attempts += 1
             time.sleep(5)
-        else:
-            break
-    mail.logout()
+
+    # 关闭连接（仅针对 IMAP 和 POP3）
+    if protocol in ["IMAP", "POP3"]:
+        if protocol == "IMAP":
+            mail.logout()
+        elif protocol == "POP3":
+            mail.quit()
+
     if attempts == max_attempts:
         print("达到最大尝试次数，未能成功获取邮件或链接")
-    headers = {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-        "Cache-Control": "max-age=0",
-        "Connection": "keep-alive",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
-        "^sec-ch-ua": "^\\^Microsoft",
-        "sec-ch-ua-mobile": "?0",
-        "^sec-ch-ua-platform": "^\\^Windows^^^",
-        "Referer": "",
-        "^If-None-Match": "^\\^q1xZB/G+1WQWAESmLBacgbEbWJA=^^^",
-        "If-Modified-Since": "Mon, 01 Apr 2024 15:21:46 GMT"
-    }
-    if href != '':
+        return False
+
+    if href:
+        headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+            "Cache-Control": "max-age=0",
+            "Connection": "keep-alive",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
+            "^sec-ch-ua": "^\\^Microsoft",
+            "sec-ch-ua-mobile": "?0",
+            "^sec-ch-ua-platform": "^\\^Windows^^^",
+            "Referer": "",
+            "^If-None-Match": "^\\^q1xZB/G+1WQWAESmLBacgbEbWJA=^^^",
+        }
         res = session.get(href, headers=headers)
         soup = BeautifulSoup(res.content, "html.parser")
         target_tag = soup.find("div", class_="newaccount_email_verified_text error")
@@ -453,94 +495,7 @@ def imap_verfy_email_url(email,password,session,g_creationSessionID):
         print('验证链接获取失败')
         return False
 
-def pop_verify_email_url(email, password, session, g_creationSessionID):
-    # 最大尝试次数
-    max_attempts = 6
-    attempts = 0
-    pop3_server = email_url  # 应该改为具体的POP3服务器地址
-    username = email
-    password = password
-    # 选择使用的端口，110是普通POP3，995是安全POP3
-    pop3_port = 995 if use_ssl else 110
-    href = ''
-    urls = []
-    while attempts < max_attempts:
-        if use_ssl:
-            mail = poplib.POP3_SSL(pop3_server, pop3_port)
-        else:
-            mail = poplib.POP3(pop3_server, pop3_port)
-        mail.user(username)
-        mail.pass_(password)
-        # 获取邮件列表
-        num_messages = len(mail.list()[1])
 
-        for i in range(num_messages):
-            # 获取邮件内容
-            raw_email = b'\n'.join(mail.retr(i + 1)[1])
-            text_body = raw_email.decode("utf-8")
-
-            # 搜索链接
-            url_pattern = r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\n]*\n[^\n]*\n[^\n]*\n\n\n'
-            found_urls = re.findall(url_pattern, text_body)
-            for url in found_urls:
-                # 清理URL
-                cleaned_url = url.replace("=3D", "=").replace("=\n", "").replace("\n", "")
-                urls.append(cleaned_url)
-
-        # 检查是否有正确的URL
-        for url in urls:
-            # 解析URL
-            parsed_url = urlparse(url)
-            # 提取查询字符串
-            query_string = parsed_url.query
-            # 解析查询字符串为字典
-            params = parse_qs(query_string)
-            creationid = params.get('creationid')
-            if creationid and creationid[0] == g_creationSessionID:
-                href = url
-                break
-
-        if href == "":
-            print("未能匹配到邮件或链接，重新尝试")
-            attempts += 1
-            time.sleep(5)
-        else:
-            break
-    mail.quit()
-    if attempts == max_attempts:
-        print("达到最大尝试次数，未能成功获取邮件或链接")
-    headers = {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-        "Cache-Control": "max-age=0",
-        "Connection": "keep-alive",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
-        "^sec-ch-ua": "^\\^Microsoft",
-        "sec-ch-ua-mobile": "?0",
-        "^sec-ch-ua-platform": "^\\^Windows^^^",
-        "Referer": "",
-        "^If-None-Match": "^\\^q1xZB/G+1WQWAESmLBacgbEbWJA=^^^",
-        "If-Modified-Since": "Mon, 01 Apr 2024 15:21:46 GMT"
-    }
-
-    if href != '':
-        res = session.get(href, headers=headers)
-        soup = BeautifulSoup(res.content, "html.parser")
-        target_tag = soup.find("div", class_="newaccount_email_verified_text error")
-        if target_tag:
-            print('验证失败')
-            return False
-        else:
-            print("验证完成")
-            return True
-    else:
-        print('验证链接获取失败')
-        return False
 
 def generate_random_account_name(length):
     characters = string.ascii_lowercase + string.digits
@@ -551,15 +506,13 @@ def generate_random_password(length):
     return ''.join(random.choice(characters) for _ in range(length))
 
 def check_account_name_availability(account_name,creation_session_id,ap_headers,session):
-    base_url = 'https://store.steampowered.com/join/checkavail/'  # 替换为实际的基础URL
-
+    base_url = 'https://store.steampowered.com/join/checkavail/' 
 
     payload = {
         'accountname': account_name,
-        'count': 1,  # 这个值是递增的，表示发送的请求次数
+        'count': 1,  
         'creationid': creation_session_id
     }
-
     try:
         response = session.post(base_url, data=payload,headers=ap_headers)
         if response.status_code == 200:
@@ -573,7 +526,7 @@ def check_account_name_availability(account_name,creation_session_id,ap_headers,
         return None
 
 def check_password_availability(account_name, password,ap_headers,session):
-    base_url = 'https://store.steampowered.com/join/checkpasswordavail/'  # 替换为实际的基础URL
+    base_url = 'https://store.steampowered.com/join/checkpasswordavail/' 
 
     payload = {
         'accountname': account_name,
@@ -593,8 +546,8 @@ def check_password_availability(account_name, password,ap_headers,session):
         print("发生异常:", e)
         return None
 
-def create_steam_account(accountname, pass_word, lt, g_creationSessionID, g_embeddedAppID, g_bGuest,cookie_str,session,eamil, pwd):
-    iAjaxCalls = 0  # 用来模拟++iAjaxCalls
+def create_steam_account(accountname, pass_word, lt, g_creationSessionID, g_embeddedAppID, g_bGuest, cookie_str, session, email_data):
+    iAjaxCalls = 0
     ap_headers = {
         "Accept": "*/*",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
@@ -612,7 +565,7 @@ def create_steam_account(accountname, pass_word, lt, g_creationSessionID, g_embe
         "sec-ch-ua-mobile": "?0",
         "^sec-ch-ua-platform": "^\\^Windows^^^"
     }
-    # 准备POST请求的参数
+
     data = {
         'accountname': accountname,
         'password': pass_word,
@@ -623,82 +576,98 @@ def create_steam_account(accountname, pass_word, lt, g_creationSessionID, g_embe
         'guest': g_bGuest
     }
 
-    url = 'https://store.steampowered.com/' + 'join/createaccount/'
+    url = 'https://store.steampowered.com/join/createaccount/'
 
     try:
-        # 发送POST请求
-        response = session.post(url, data=data,headers=ap_headers)
+        response = session.post(url, data=data, headers=ap_headers)
         if response.ok:
             result = response.json()
-            # print(result)
-            save_to_file(accountname,pass_word,eamil, pwd,result['bSuccess'])
+            print(f'{accountname},提交注册完成')
+            save_to_file(accountname, pass_word, email_data, result['bSuccess'])
         else:
             print('Failed to send request. HTTP Error:', response.status_code)
     except Exception as e:
         print('An error occurred:', str(e))
 
-def save_to_file(account_name, password, email, pwd, boll):
-    with open("accounts.txt", "a") as file:
-        file.write(f"{account_name}----{password}----{email}----{pwd}----{boll}\n")
-    with open("accounts-true.txt", "a") as file:
-        if boll:
-            file.write(f"{account_name}----{password}----{email}----{pwd}\n")
+def save_to_file(account_name, password, email_data, boll):
+    file_name = "accounts_succ.txt" if boll else "accounts_fail.txt"
+    file_path = os.path.join(script_dir, file_name)
+    if protocol == "GRAPH":
+        save_data = f"{account_name}----{password}----{email_data['email']}----{email_data['password']}----{email_data['client_id']}----{email_data['refresh_token']}\n"
+    else:  
+        save_data = f"{account_name}----{password}----{email_data['email']}----{email_data['password']}\n"
+        
+    with open(file_path, "a", encoding='utf-8') as file:
+        file.write(save_data)
 
-# 更换IP的函数
 def get_ip():
     while True:
         try:
-            proxy_ip = proxy_queue.get(block=True)  # 使用阻塞式获取
-            return  proxy_ip
+            if not success_proxy_queue.empty():
+                return success_proxy_queue.get(block=True)
+            if not proxy_queue.empty():
+                return proxy_queue.get(block=True)
+            time.sleep(5)
         except Exception as e:
-            print(f"An error occurred while getting proxy IP: {e}")
-            time.sleep(5)  # 等待一段时间后重试
+            print(f"获取代理IP失败: {e}")
+            time.sleep(5)
 
-def change_ip(proxy_ip):
-    try:
-        # 拆分代理IP的字符串
-        parts = proxy_ip.split(':')
-        # 获取 sessID 部分的值
-        match = re.search(r"-sessID-(\w+)", parts[2])
-        sessID = match.group(1)
-        replaceip_url = f"http://{parts[0]}:9988/update?tunnelId=1911&sessID={sessID}&password={parts[3]}"
-        res = requests.get(replaceip_url)
-        if res.status_code == 200:
-            # print(f"IP changed successfully to {proxy_ip}.")
-            return True
-        else:
-            # print(f"Failed to change IP to {proxy_ip}.")
-            return False
-    except Exception as e:
-        # print(f"An error occurred: {e}")
-        return False
+def read_config(filename):
+    with open(filename, 'r') as f:
+        config = json.load(f)
+    return config
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+config_path = os.path.join(script_dir, 'config.json')
+email_password_path = os.path.join(script_dir, 'email_password.txt')
+proxy_ips_path = os.path.join(script_dir, 'proxy_ips.txt')
 
 # 创建 ThreadPoolExecutor 对象，指定最大并发数为10
-config_data = read_config('config.json')
-proxy_ips = config_data['proxy_ips']
+config_data = read_config(config_path)
 clientKey = config_data['clientKey']
 email_url = config_data['email_url']
 use_ssl = config_data['ssl']
 executornum = config_data['executornum']
+protocol = config_data['protocol']
+
+with open(proxy_ips_path, "r") as file:
+    proxy_ips = [line.strip() for line in file if line.strip()]
 
 proxy_queue = queue.Queue()
 for proxy_ip in proxy_ips:
     proxy_queue.put(proxy_ip)
+success_proxy_queue = queue.Queue()
 
 executor = ThreadPoolExecutor(max_workers=executornum)
 
-# 模拟任务
-def task(email, password,proxy_ip,proxy_queue):
-        main(email, password, proxy_ip,proxy_queue)
+
+def parse_email_credentials(email_password_str):
+    parts = email_password_str.strip().split("----")
+    if len(parts) == 2:
+        return {
+            'email': parts[0],
+            'password': parts[1]
+        }
+    elif len(parts) == 4: 
+        return {
+            'email': parts[0],
+            'password': parts[1],
+            'client_id': parts[2],
+            'refresh_token': parts[3],
+        }
+    else:
+        raise ValueError("Invalid email credentials format")
+
 
 def start_tasks():
-    with open("email_password.txt", "r") as file:
-        emails_passwords = [line.strip().split("----") for line in file]
-        for email, password in emails_passwords:
-            proxy_ip = get_ip()
-            if proxy_ip:
-                executor.submit(task,email,password,proxy_ip,proxy_queue)
-# 启动任务
+    with open(email_password_path, "r") as file:
+        for line in file:
+            try:
+                email_data = parse_email_credentials(line.strip())
+                executor.submit(main, email_data)
+            except ValueError as e:
+                print(f"错误的邮箱格式: {e}")
+                continue
+
 start_tasks()
-# 等待所有任务完成
 executor.shutdown(wait=True)
