@@ -1,3 +1,4 @@
+import base64
 import imaplib
 import json
 import os
@@ -52,7 +53,7 @@ def main(email_data, retries = 30):
             cookie_str = '; '.join([f"{k}={v}" for k, v in cookies.items()])
 
             response = ajaxverifyemail(session, cookie_str, email, token, gid,init_id)
-            print(response.text)
+            print(f'{email}提交注册结果：{response.text}')
             if response.json()['success'] != 1:
                 raise Exception("人机验证未通过")
             
@@ -75,7 +76,7 @@ def main(email_data, retries = 30):
             main_retry_count += 1
             time.sleep(2)
             if main_retry_count >= retries:
-                print(f"{email}线程超时")
+                print(f"{email}注册失败，达到最大重试次数")
                 with open('rgerror.txt', 'a', encoding='utf-8') as file:
                     file.write(f"{email}----{paw}\n")
 
@@ -96,8 +97,20 @@ def is_email_valid(email_data):
             emails = graph_get_email(email_data)
             if emails is None:
                 raise ValueError("获取邮件失败")
+        elif protocol == "IMAP_OAUTH":
+            access_token = get_access_token(email_data)
+            if not access_token:
+                raise ValueError("获取访问令牌失败")
+            server = authenticate_oauth2(email, access_token)
+            server.logout()
+        elif protocol == "POP3_OAUTH":
+            access_token = get_access_token(email_data)
+            if not access_token:
+                raise ValueError("获取访问令牌失败")
+            server = authenticate_oauth2(email, access_token)
+            server.quit()
         else:
-            raise ValueError("Unsupported protocol. Use 'IMAP', 'POP3' or 'GRAPH'.")
+            raise ValueError("不支持的协议类型")
         return True
     except Exception as e:
         print(f"邮箱验证失败: {e}")
@@ -268,7 +281,6 @@ def ajax_check_email_verified(g_creationSessionID,cookie_str,session,email_data)
     start_time = time.time()
     verfy = False
     while True:
-
         if time.time() - start_time > 180:  # 超过3分钟退出循环
             break
         response = session.post(url, data=data,headers=ap_headers)
@@ -309,6 +321,25 @@ def ajax_check_email_verified(g_creationSessionID,cookie_str,session,email_data)
         else:
             time.sleep(5)
 
+def authenticate_oauth2(username, access_token):
+    # 构建 XOAUTH2 字符串
+    auth_string = f"user={username}\x01auth=Bearer {access_token}\x01\x01"
+    auth_bytes = auth_string.encode('utf-8')
+    auth_b64 = base64.b64encode(auth_bytes).decode('utf-8')
+    
+    if protocol == "IMAP_OAUTH":
+        # IMAP 认证
+        server = imaplib.IMAP4_SSL('outlook.office365.com')
+        server.authenticate('XOAUTH2', lambda x: auth_b64)
+        return server
+    
+    elif protocol == "POP3_OAUTH":
+        # POP3 认证
+        server = poplib.POP3_SSL('outlook.office365.com')
+        server._shortcmd('AUTH XOAUTH2')
+        server._shortcmd(auth_b64)
+        return server
+    
 def get_access_token(email_data):
     data = {
         'client_id': email_data['client_id'],
@@ -333,12 +364,12 @@ def graph_get_email(email_data):
         }
 
         params = {
-            '$top': 5,  # 限制返回数量
-            '$select': 'subject,body,receivedDateTime,from,hasAttachments',  # 选择需要的字段
-            '$orderby': 'receivedDateTime desc'  # 按接收时间降序排序
+            '$top': 5, 
+            '$select': 'subject,body,receivedDateTime,from,hasAttachments', 
+            '$orderby': 'receivedDateTime desc'
         }
 
-        response = requests.get('https://graph.microsoft.com/v1.0/me/messages', headers=headers)
+        response = requests.get('https://graph.microsoft.com/v1.0/me/messages', headers=headers,params=params)
         if response.status_code == 200:
             emails = response.json().get('value', [])
             return emails 
@@ -353,86 +384,74 @@ def fetch_email_verification_url(email_data, session, g_creationSessionID):
     attempts = 0
     href = ''
     urls = []
-    
+
+    def extract_urls_from_body(body, pattern):
+        found_urls = re.findall(pattern, body)
+        return [url.replace('&amp;', '&').replace("=3D", "=").replace("=\r\n", "").replace("\r\n", "").replace("=\n", "").replace("\n", "") for url in found_urls]
+
+    def process_emails(emails, pattern):
+        for email in emails:
+            body = email.get('body', {}).get('content', '')
+            urls.extend(extract_urls_from_body(body, pattern))
+
+    def process_imap(mail, folder_name, pattern):
+        mail.select(folder_name)
+        status, messages = mail.search(None, "ALL")
+        if status == "OK":
+            for message_id in messages[0].split():
+                status, data = mail.fetch(message_id, "(BODY[TEXT])")
+                if status == "OK":
+                    raw_email = data[0][1]
+                    text_body = raw_email.decode("utf-8")
+                    urls.extend(extract_urls_from_body(text_body, pattern))
+
+    def process_pop3(mail, pattern):
+        num_messages = len(mail.list()[1])
+        for i in range(num_messages):
+            raw_email = b'\n'.join(mail.retr(i + 1)[1])
+            text_body = raw_email.decode("utf-8")
+            urls.extend(extract_urls_from_body(text_body, pattern))
+
     while attempts < max_attempts:
         try:
             if protocol == "GRAPH":
-                # 获取 Microsoft Graph 邮件
                 emails = graph_get_email(email_data)
                 if emails:
-                    for email in emails:
-                        body = email.get('body', {}).get('content', '')
-                        # 搜索验证链接
-                        url_pattern = r'href="(https://store\.steampowered\.com/account/newaccountverification\?[^"]+)"'
-                        found_urls = re.findall(url_pattern, body)
-                        for url in found_urls:
-                            # 处理 HTML 实体编码
-                            cleaned_url = url.replace('&amp;', '&')
-                            urls.append(cleaned_url)
+                    process_emails(emails, r'href="(https://store\.steampowered\.com/account/newaccountverification\?[^"]+)"')
             else:
                 email = email_data['email']
                 password = email_data['password']
-                if protocol == "IMAP":
+                if protocol in ["IMAP", "IMAP_OAUTH"]:
                     mail = imaplib.IMAP4_SSL(email_url) if use_ssl else imaplib.IMAP4(email_url)
-                    mail.login(email, password)
-                    mail.select("INBOX")
-                    # 搜索邮件
-                    status, messages = mail.search(None, "ALL")
-                    if status == "OK":
-                        for message_id in messages[0].split():
-                            # 获取邮件的纯文本正文
-                            status, data = mail.fetch(message_id, "(BODY[TEXT])")
-                            if status == "OK":
-                                raw_email = data[0][1]
-                                text_body = raw_email.decode("utf-8")
-                                # 搜索链接
-                                url_pattern = r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\r\n]*\r\n[^\r\n]*\r\n[^\r\n]*\r\n\r\n\r\n'
-                                found_urls = re.findall(url_pattern, text_body)
-                                for url in found_urls:
-                                    # 清理URL
-                                    cleaned_url = url.replace("=3D", "=").replace("=\r\n", "").replace("\r\n", "")
-                                    urls.append(cleaned_url)
-                    junk_folder_names = ['Junk', 'Trash', 'Spam', 'Junk Email']
-                    junk_name = ''
-                    for folder_name in junk_folder_names:
-                        try:
-                            status, messages = mail.select(folder_name)
-                            if status == "OK":
-                                junk_name = folder_name
-                                break
-                        except imaplib.IMAP4.error as e:
+                    if protocol == "IMAP_OAUTH":
+                        access_token = get_access_token(email_data)
+                        if not access_token:
+                            attempts += 1
+                            time.sleep(5)
                             continue
-                    if junk_name !='':
-                        mail.select(junk_name)  # 垃圾箱的名称可能有所不同，如"Trash"或"Junk Email"
-                        status, messages = mail.search(None, "ALL")
-                        if status == "OK":
-                            for message_id in messages[0].split():
-                                # 获取邮件的纯文本正文
-                                status, data = mail.fetch(message_id, "(BODY[TEXT])")
-                                if status == "OK":
-                                    raw_email = data[0][1]
-                                    text_body = raw_email.decode("utf-8")
-                                    url_pattern = r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\r\n]*\r\n[^\r\n]*\r\n[^\r\n]*\r\n\r\n\r\n'
-                                    found_urls = re.findall(url_pattern, text_body)
-                                    for url in found_urls:
-                                        # 清理URL
-                                        cleaned_url = url.replace("=3D", "=").replace("=\r\n", "").replace("\r\n", "")
-                                        urls.append(cleaned_url)
-                elif protocol == "POP3":
+                        mail = authenticate_oauth2(email, access_token)
+                    mail.login(email, password)
+                    process_imap(mail, "INBOX", r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\r\n]*\r\n[^\r\n]*\r\n[^\r\n]*\r\n\r\n\r\n')
+                    for folder_name in ['Junk', 'Trash', 'Spam', 'Junk Email']:
+                        try:
+                            process_imap(mail, folder_name, r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\r\n]*\r\n[^\r\n]*\r\n[^\r\n]*\r\n\r\n\r\n')
+                        except imaplib.IMAP4.error:
+                            continue
+                    mail.logout()
+                elif protocol in ["POP3", "POP3_OAUTH"]:
                     mail = poplib.POP3_SSL(email_url) if use_ssl else poplib.POP3(email_url)
+                    if protocol == "POP3_OAUTH":
+                        access_token = get_access_token(email_data)
+                        if not access_token:
+                            attempts += 1
+                            time.sleep(5)
+                            continue
+                        mail = authenticate_oauth2(email, access_token)
                     mail.user(email)
                     mail.pass_(password)
-                    num_messages = len(mail.list()[1])
-                    for i in range(num_messages):
-                        raw_email = b'\n'.join(mail.retr(i + 1)[1])
-                        text_body = raw_email.decode("utf-8")
-                        url_pattern = r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\n]*\n[^\n]*\n[^\n]*\n\n\n'
-                        found_urls = re.findall(url_pattern, text_body)
-                        for url in found_urls:
-                            cleaned_url = url.replace("=3D", "=").replace("=\n", "").replace("\n", "")
-                            urls.append(cleaned_url)
+                    process_pop3(mail, r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\n]*\n[^\n]*\n[^\n]*\n\n\n')
+                    mail.quit()
 
-            # 检查是否有正确的 URL
             for url in urls:
                 parsed_url = urlparse(url)
                 query_string = parsed_url.query
@@ -452,13 +471,6 @@ def fetch_email_verification_url(email_data, session, g_creationSessionID):
             print(f"邮件处理错误: {e}")
             attempts += 1
             time.sleep(5)
-
-    # 关闭连接（仅针对 IMAP 和 POP3）
-    if protocol in ["IMAP", "POP3"]:
-        if protocol == "IMAP":
-            mail.logout()
-        elif protocol == "POP3":
-            mail.quit()
 
     if attempts == max_attempts:
         print("达到最大尝试次数，未能成功获取邮件或链接")
@@ -531,7 +543,7 @@ def check_password_availability(account_name, password,ap_headers,session):
     payload = {
         'accountname': account_name,
         'password': password,
-        'count': 1  # 这个值是递增的，表示发送的请求次数
+        'count': 1 
     }
 
     try:
@@ -546,6 +558,8 @@ def check_password_availability(account_name, password,ap_headers,session):
         print("发生异常:", e)
         return None
 
+
+    
 def create_steam_account(accountname, pass_word, lt, g_creationSessionID, g_embeddedAppID, g_bGuest, cookie_str, session, email_data):
     iAjaxCalls = 0
     ap_headers = {
