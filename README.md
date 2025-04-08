@@ -17,7 +17,7 @@ Steam 账号自动注册工具，支持多种邮箱协议和多线程并发注�
 ```json
 {
     "clientKey": "你的captcha.run token",
-    "protocol": "IMAP/POP3/GRAPH",
+    "protocol": "IMAP/POP3/GRAPH/IMAP_OAUTH/POP3_OAUTH",
     "ssl": true,
     "email_url": "imap.gmx.com", 邮箱服务器地址，自行查找
     "executornum": 10
@@ -46,6 +46,7 @@ email_password.txt 格式:
 ```
 email----password
 ```
+微软IMAP_OAUTH和POP3_OAUTH 未测试，可用性不详
 
 Graph API邮箱:
 ```
