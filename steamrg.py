@@ -7,6 +7,7 @@ import queue
 import random
 import re
 import string
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse, parse_qs
@@ -21,10 +22,8 @@ def main(email_data, retries = 30):
     paw = email_data['password']
     
     if not is_email_valid(email_data):
-        print(f"邮箱 {email} 不可用，线程结束")
-        error_path = os.path.join(script_dir, 'rgerror.txt')
-        with open(error_path, 'a', encoding='utf-8') as file:
-            file.write(f"{email}----{paw}\n")
+        print(f"邮箱 {email_data['email']} 不可用，线程结束")
+        log_error(email_data)
         return
     
     while main_retry_count < retries:
@@ -76,9 +75,8 @@ def main(email_data, retries = 30):
             main_retry_count += 1
             time.sleep(2)
             if main_retry_count >= retries:
-                print(f"{email}注册失败，达到最大重试次数")
-                with open('rgerror.txt', 'a', encoding='utf-8') as file:
-                    file.write(f"{email}----{paw}\n")
+                print(f"{email_data['email']}注册失败，达到最大重试次数")
+                log_error(email_data)
 
 def is_email_valid(email_data):
     try:
@@ -101,13 +99,13 @@ def is_email_valid(email_data):
             access_token = get_access_token(email_data)
             if not access_token:
                 raise ValueError("获取访问令牌失败")
-            server = authenticate_oauth2(email, access_token)
+            server = authenticate_oauth2(email_data, access_token)
             server.logout()
         elif protocol == "POP3_OAUTH":
             access_token = get_access_token(email_data)
             if not access_token:
                 raise ValueError("获取访问令牌失败")
-            server = authenticate_oauth2(email, access_token)
+            server = authenticate_oauth2(email_data, access_token)
             server.quit()
         else:
             raise ValueError("不支持的协议类型")
@@ -261,7 +259,7 @@ def ajax_check_email_verified(g_creationSessionID,cookie_str,session,email_data)
 
     data = {'creationid': g_creationSessionID}
     url = 'https://store.steampowered.com/' + 'join/ajaxcheckemailverified'
-    ap_headers = {
+    headers = {
         "Accept": "*/*",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
         "Connection": "keep-alive",
@@ -283,12 +281,12 @@ def ajax_check_email_verified(g_creationSessionID,cookie_str,session,email_data)
     while True:
         if time.time() - start_time > 180:  # 超过3分钟退出循环
             break
-        response = session.post(url, data=data,headers=ap_headers)
+        response = session.post(url, data=data,headers=headers)
         if response.ok:
             success = response.json()
             if success['success'] == 1 or verfy:
                 account_name = generate_random_account_name(random.randint(8, 12))
-                result = check_account_name_availability(account_name,g_creationSessionID,ap_headers,session)
+                result = check_account_name_availability(account_name,g_creationSessionID,headers,session)
                 if result:
                     if result['bAvailable']:
                         print("账户名可用:"+account_name)
@@ -303,7 +301,7 @@ def ajax_check_email_verified(g_creationSessionID,cookie_str,session,email_data)
                     password = generate_random_password(random.randint(8, 12))
 
                     # 检查密码可用性
-                    password_result = check_password_availability(account_name, password,ap_headers,session)
+                    password_result = check_password_availability(account_name, password,headers,session)
                     if password_result:
                         if password_result['bAvailable']:
                             print("密码可用:", password)
@@ -321,23 +319,21 @@ def ajax_check_email_verified(g_creationSessionID,cookie_str,session,email_data)
         else:
             time.sleep(5)
 
-def authenticate_oauth2(username, access_token):
+def authenticate_oauth2(email_data, access_token):
     # 构建 XOAUTH2 字符串
-    auth_string = f"user={username}\x01auth=Bearer {access_token}\x01\x01"
-    auth_bytes = auth_string.encode('utf-8')
-    auth_b64 = base64.b64encode(auth_bytes).decode('utf-8')
+    email = email_data['email']
+    auth_string = f'''user={email}\x01auth=Bearer {access_token}\x01\x01'''
+    auth_bytes = auth_string.encode('ascii')
+    auth_b64 = base64.b64encode(auth_bytes).decode('ascii')
     
     if protocol == "IMAP_OAUTH":
-        # IMAP 认证
-        server = imaplib.IMAP4_SSL('outlook.office365.com')
-        server.authenticate('XOAUTH2', lambda x: auth_b64)
+        server = imaplib.IMAP4_SSL('outlook.live.com')
+        server.authenticate('XOAUTH2', lambda x: auth_string)
         return server
-    
     elif protocol == "POP3_OAUTH":
-        # POP3 认证
-        server = poplib.POP3_SSL('outlook.office365.com')
+        server = poplib.POP3_SSL('outlook.live.com')
         server._shortcmd('AUTH XOAUTH2')
-        server._shortcmd(auth_b64)
+        server._shortcmd(f'''{auth_b64}''')
         return server
     
 def get_access_token(email_data):
@@ -345,11 +341,11 @@ def get_access_token(email_data):
         'client_id': email_data['client_id'],
         'refresh_token': email_data['refresh_token'],
         'grant_type': 'refresh_token',
-        'scope': 'https://graph.microsoft.com/.default',
     }
     response = requests.post('https://login.microsoftonline.com/consumers/oauth2/v2.0/token', data=data)
     if response.status_code == 200:
         access_token = response.json().get('access_token')
+        refresh_token = response.json().get('refresh_token',None)
         if access_token:
             return access_token
 
@@ -422,7 +418,6 @@ def fetch_email_verification_url(email_data, session, g_creationSessionID):
                 email = email_data['email']
                 password = email_data['password']
                 if protocol in ["IMAP", "IMAP_OAUTH"]:
-                    mail = imaplib.IMAP4_SSL(email_url) if use_ssl else imaplib.IMAP4(email_url)
                     if protocol == "IMAP_OAUTH":
                         access_token = get_access_token(email_data)
                         if not access_token:
@@ -430,7 +425,9 @@ def fetch_email_verification_url(email_data, session, g_creationSessionID):
                             time.sleep(5)
                             continue
                         mail = authenticate_oauth2(email, access_token)
-                    mail.login(email, password)
+                    else:
+                        mail = imaplib.IMAP4_SSL(email_url) if use_ssl else imaplib.IMAP4(email_url)
+                        mail.login(email, password)
                     process_imap(mail, "INBOX", r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\r\n]*\r\n[^\r\n]*\r\n[^\r\n]*\r\n\r\n\r\n')
                     for folder_name in ['Junk', 'Trash', 'Spam', 'Junk Email']:
                         try:
@@ -439,7 +436,6 @@ def fetch_email_verification_url(email_data, session, g_creationSessionID):
                             continue
                     mail.logout()
                 elif protocol in ["POP3", "POP3_OAUTH"]:
-                    mail = poplib.POP3_SSL(email_url) if use_ssl else poplib.POP3(email_url)
                     if protocol == "POP3_OAUTH":
                         access_token = get_access_token(email_data)
                         if not access_token:
@@ -447,8 +443,10 @@ def fetch_email_verification_url(email_data, session, g_creationSessionID):
                             time.sleep(5)
                             continue
                         mail = authenticate_oauth2(email, access_token)
-                    mail.user(email)
-                    mail.pass_(password)
+                    else:
+                        mail = poplib.POP3_SSL(email_url) if use_ssl else poplib.POP3(email_url)
+                        mail.user(email)
+                        mail.pass_(password)
                     process_pop3(mail, r'https://store.steampowered.com/account/newaccountverification\?stoken=3D[^\n]*\n[^\n]*\n[^\n]*\n\n\n')
                     mail.quit()
 
@@ -460,7 +458,6 @@ def fetch_email_verification_url(email_data, session, g_creationSessionID):
                 if creationid and creationid[0] == g_creationSessionID:
                     href = url
                     break
-
             if href:
                 break
             else:
@@ -557,9 +554,7 @@ def check_password_availability(account_name, password,ap_headers,session):
     except Exception as e:
         print("发生异常:", e)
         return None
-
-
-    
+ 
 def create_steam_account(accountname, pass_word, lt, g_creationSessionID, g_embeddedAppID, g_bGuest, cookie_str, session, email_data):
     iAjaxCalls = 0
     ap_headers = {
@@ -603,16 +598,23 @@ def create_steam_account(accountname, pass_word, lt, g_creationSessionID, g_embe
     except Exception as e:
         print('An error occurred:', str(e))
 
-def save_to_file(account_name, password, email_data, boll):
-    file_name = "accounts_succ.txt" if boll else "accounts_fail.txt"
+def save_to_file(account_name, password, email_data, success):
+    """保存账户信息"""
+    file_name = "accounts_succ.txt" if success else "accounts_fail.txt"
     file_path = os.path.join(script_dir, file_name)
-    if protocol == "GRAPH":
-        save_data = f"{account_name}----{password}----{email_data['email']}----{email_data['password']}----{email_data['client_id']}----{email_data['refresh_token']}\n"
-    else:  
-        save_data = f"{account_name}----{password}----{email_data['email']}----{email_data['password']}\n"
-        
-    with open(file_path, "a", encoding='utf-8') as file:
-        file.write(save_data)
+    with file_lock:
+        try:
+            with open(file_path, "a", encoding='utf-8') as file:
+                if protocol in ["GRAPH","IMAP_OAUTH","POP3_OAUTH"]:
+                    save_data = (f"{account_name}----{password}----{email_data['email']}----"
+                               f"{email_data['password']}----{email_data['client_id']}----"
+                               f"{email_data['refresh_token']}\n")
+                else:
+                    save_data = (f"{account_name}----{password}----{email_data['email']}----"
+                               f"{email_data['password']}\n")
+                file.write(save_data)
+        except Exception as e:
+            print(f"保存账户信息失败: {e}")
 
 def get_ip():
     while True:
@@ -631,29 +633,20 @@ def read_config(filename):
         config = json.load(f)
     return config
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-config_path = os.path.join(script_dir, 'config.json')
-email_password_path = os.path.join(script_dir, 'email_password.txt')
-proxy_ips_path = os.path.join(script_dir, 'proxy_ips.txt')
-
-# 创建 ThreadPoolExecutor 对象，指定最大并发数为10
-config_data = read_config(config_path)
-clientKey = config_data['clientKey']
-email_url = config_data['email_url']
-use_ssl = config_data['ssl']
-executornum = config_data['executornum']
-protocol = config_data['protocol']
-
-with open(proxy_ips_path, "r") as file:
-    proxy_ips = [line.strip() for line in file if line.strip()]
-
-proxy_queue = queue.Queue()
-for proxy_ip in proxy_ips:
-    proxy_queue.put(proxy_ip)
-success_proxy_queue = queue.Queue()
-
-executor = ThreadPoolExecutor(max_workers=executornum)
-
+def log_error(email_data):
+    """记录错误信息"""
+    error_path = os.path.join(script_dir, 'rgerror.txt')
+    with file_lock:
+        try:
+            with open(error_path, 'a', encoding='utf-8') as file:
+                if protocol in ["GRAPH", "IMAP_OAUTH", "POP3_OAUTH"]:
+                    error_data = (f"{email_data['email']}----{email_data['password']}----"
+                                f"{email_data['client_id']}----{email_data['refresh_token']}\n")
+                else:
+                    error_data = f"{email_data['email']}----{email_data['password']}\n"
+                file.write(error_data)
+        except Exception as e:
+            print(f"记录错误失败: {e}")
 
 def parse_email_credentials(email_password_str):
     parts = email_password_str.strip().split("----")
@@ -683,5 +676,28 @@ def start_tasks():
                 print(f"错误的邮箱格式: {e}")
                 continue
 
+file_lock = threading.Lock()
+script_dir = os.path.dirname(os.path.abspath(__file__))
+config_path = os.path.join(script_dir, 'config.json')
+email_password_path = os.path.join(script_dir, 'email_password.txt')
+proxy_ips_path = os.path.join(script_dir, 'proxy_ips.txt')
+
+# 创建 ThreadPoolExecutor 对象，指定最大并发数为10
+config_data = read_config(config_path)
+clientKey = config_data['clientKey']
+email_url = config_data['email_url']
+use_ssl = config_data['ssl']
+executornum = config_data['executornum']
+protocol = config_data['protocol']
+
+with open(proxy_ips_path, "r") as file:
+    proxy_ips = [line.strip() for line in file if line.strip()]
+
+proxy_queue = queue.Queue()
+for proxy_ip in proxy_ips:
+    proxy_queue.put(proxy_ip)
+success_proxy_queue = queue.Queue()
+
+executor = ThreadPoolExecutor(max_workers=executornum)
 start_tasks()
 executor.shutdown(wait=True)
