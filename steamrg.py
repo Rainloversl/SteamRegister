@@ -342,6 +342,8 @@ def get_access_token(email_data):
         'refresh_token': email_data['refresh_token'],
         'grant_type': 'refresh_token',
     }
+    if protocol == 'GRAPH':
+        data['scope'] = 'https://graph.microsoft.com/.default'
     response = requests.post('https://login.microsoftonline.com/consumers/oauth2/v2.0/token', data=data)
     if response.status_code == 200:
         access_token = response.json().get('access_token')
