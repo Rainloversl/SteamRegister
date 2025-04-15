@@ -225,7 +225,8 @@ class SteamRegistration:
             "host": proxy_ip,
             "port": proxy_port,
             "login": username,
-            "password": password
+            "password": password,
+            "developer": "5888a224-d520-4c38-aa71-c8411dd62e8c" 
         })
 
         response = requests.post(createTask_url, headers=headers, data=payload)
