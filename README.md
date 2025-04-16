@@ -62,6 +62,8 @@ Microsoft Graph API 参数获取方法参考: [wmemail.com](https://wmemail.com/
 1. 注册国家由代理IP决定
 2. 每个线程执行前会验证邮箱可用性
 3. 人机验证使用 captcha.run 平台服务
+4. steam hcaptcha检测严格，captcha.run提供的接口阶段性可用，详细进群了解。
+5. 人机验证为无感验证， ipweb代理中部分ip可通过，所以需要通过频繁更换ip找到能通过的，这意味着流量成本的增加。
 - QQ群: 961381410 (captcha.run 官方群) 群内有captcha.run 提供的免费且专业版
 
 ## 免责声明
