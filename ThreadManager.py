@@ -43,8 +43,8 @@ class ThreadManager:
             return {
                 'email': parts[0],
                 'password': parts[1],
-                'client_id': parts[2],
-                'refresh_token': parts[3]
+                'client_id': parts[3],
+                'refresh_token': parts[2]
             }
         raise ValueError("Invalid email credentials format")
 
@@ -129,14 +129,15 @@ class GUIThreadManager(ThreadManager):
         """启动处理"""
         self._running = True
         with open(self.email_file, 'r', encoding='utf-8') as file:
-            with ThreadPoolExecutor(max_workers=self.config['executornum']) as self.executor:
-                for line in file:
-                    if not self._running:
-                        break
-                    try:
-                        email_data = self.parse_email_credentials(line)
-                        # 跳过已完成的任务
-                        if email_data['email'] not in self.completed_tasks:
-                            self.executor.submit(self.process_email, email_data)
-                    except ValueError as e:
-                        self.gui.update_status(email_data['email'],f"解析邮箱文件失败: {e}")
+            all_lines = file.readlines()  # 一次性读取所有行
+        with ThreadPoolExecutor(max_workers=self.config['executornum']) as self.executor:
+            for line in all_lines:
+                if not self._running:
+                    break
+                try:
+                    email_data = self.parse_email_credentials(line.strip())
+                    # 跳过已完成的任务
+                    if email_data['email'] not in self.completed_tasks:
+                        self.executor.submit(self.process_email, email_data)
+                except ValueError as e:
+                    self.gui.update_status(email_data.get('email', '未知'), f"解析邮箱文件失败: {e}")

@@ -5,6 +5,8 @@ import os
 import poplib
 import random
 import re
+import shutil
+import stat
 import string
 import time
 import threading
@@ -94,7 +96,6 @@ class SteamRegistration:
                 emails = self._graph_get_email()
                 if emails is None:
                     raise ValueError("获取邮件失败")
-                print(emails)
             elif protocol == "IMAP_OAUTH":
                 self._get_access_token()
                 if not self.access_token:
@@ -188,10 +189,16 @@ class SteamRegistration:
                     for line in f:
                         parts = line.strip().split('----')
                         if len(parts) == 4 and parts[0] == self.email_data['email']:
-                            parts[3] = refresh_token
+                            parts[2] = refresh_token
                             line = '----'.join(parts) + '\n'
                         temp.write(line)
-                os.replace(temp_path, file_path)
+                # 如果目标文件存在，先设置为可写并删除
+                if os.path.exists(file_path):
+                    os.chmod(file_path, stat.S_IWRITE)  # 设置为可写
+                    os.remove(file_path)
+
+                # 使用 shutil.move 替代 os.replace 更稳定
+                shutil.move(temp_path, file_path)
             except Exception as e:
                 print(f"更新refresh_token失败: {e}")
                 if os.path.exists(temp_path):
@@ -375,8 +382,8 @@ class SteamRegistration:
                 with open(file_path, "a", encoding='utf-8') as file:
                     if self.config['protocol'] in ["GRAPH", "IMAP_OAUTH", "POP3_OAUTH"]:
                         save_data = (f"{account_name}----{password}----{self.email_data['email']}----"
-                                   f"{self.email_data['password']}----{self.email_data['client_id']}----"
-                                   f"{self.email_data['refresh_token']}\n")
+                                   f"{self.email_data['password']}----{self.email_data['refresh_token']}----"
+                                   f"{self.email_data['client_id']}\n")
                     else:
                         save_data = (f"{account_name}----{password}----{self.email_data['email']}----"
                                    f"{self.email_data['password']}\n")
@@ -394,7 +401,7 @@ class SteamRegistration:
                     # 根据协议类型保存不同格式的错误信息
                     if self.config['protocol'] in ["GRAPH", "IMAP_OAUTH", "POP3_OAUTH"]:
                         error_data = (f"{self.email_data['email']}----{self.email_data['password']}----"
-                                    f"{self.email_data['client_id']}----{self.email_data['refresh_token']}\n")
+                                    f"{self.email_data['refresh_token']}----{self.email_data['client_id']}\n")
                     else:
                         error_data = f"{self.email_data['email']}----{self.email_data['password']}\n"
                     file.write(error_data)
@@ -493,10 +500,10 @@ class SteamRegistration:
                             mail.login(self.email_data['email'], self.email_data['password'])
                             
                         # 处理所有邮件文件夹
-                        process_imap(mail, "INBOX", r'https://store\.steampowered\.com/account/newaccountverification\?stoken=3D[^\r\n]*\r\n[^\r\n]*\r\n[^\r\n]*\r\n\r\n\r\n')
+                        process_imap(mail, "INBOX", r'https://store\.steampowered\.com/account/newaccountverification\?stoken=3D[^\s]+[\r\n]+[^\s\r\n]+[\r\n]+[^\s\r\n]+')
                         for folder_name in ['Junk', 'Trash', 'Spam', 'Junk Email']:
                             try:
-                                process_imap(mail, folder_name, r'https://store\.steampowered\.com/account/newaccountverification\?stoken=3D[^\r\n]*\r\n[^\r\n]*\r\n[^\r\n]*\r\n\r\n\r\n')
+                                process_imap(mail, folder_name, r'https://store\.steampowered\.com/account/newaccountverification\?stoken=3D[^\s]+[\r\n]+[^\s\r\n]+[\r\n]+[^\s\r\n]+')
                             except imaplib.IMAP4.error:
                                 continue
                         mail.logout()
@@ -513,7 +520,7 @@ class SteamRegistration:
                             mail = poplib.POP3_SSL(self.config['email_url']) if self.config['ssl'] else poplib.POP3(self.config['email_url'])
                             mail.user(self.email_data['email'])
                             mail.pass_(self.email_data['password'])
-                        process_pop3(mail, r'https://store\.steampowered\.com/account/newaccountverification\?stoken=3D[^\n]*\n[^\n]*\n[^\n]*\n\n\n')
+                        process_pop3(mail, r'https://store\.steampowered\.com/account/newaccountverification\?stoken=3D[^\s]+[\r\n]+[^\s\r\n]+[\r\n]+[^\s\r\n]+')
                         mail.quit()
     
                 # 检查验证链接
