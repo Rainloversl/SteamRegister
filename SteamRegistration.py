@@ -192,13 +192,7 @@ class SteamRegistration:
                             parts[2] = refresh_token
                             line = '----'.join(parts) + '\n'
                         temp.write(line)
-                # 如果目标文件存在，先设置为可写并删除
-                if os.path.exists(file_path):
-                    os.chmod(file_path, stat.S_IWRITE)  # 设置为可写
-                    os.remove(file_path)
-
-                # 使用 shutil.move 替代 os.replace 更稳定
-                shutil.move(temp_path, file_path)
+                os.replace(temp_path, file_path)
             except Exception as e:
                 print(f"更新refresh_token失败: {e}")
                 if os.path.exists(temp_path):
