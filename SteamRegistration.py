@@ -32,6 +32,7 @@ class SteamRegistration:
         self.sessionid = None
         self.gui = None
         self.running = True
+        self.siteKey = None
         self.BASE_HEADERS = {
             "Accept": "*/*",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
@@ -57,7 +58,18 @@ class SteamRegistration:
     def update_status(self, status, account_name=None, password=None, result=None):
         if self.gui:
             self.gui.update_status(self.email_data['email'], status, account_name, password, result)    
-    
+
+    def get_siteKey(self):
+        url = "https://store.steampowered.com/join/refreshcaptcha/"
+        data = {
+            "count": "1",
+            "hcaptcha": "1"
+        }
+        response = self.session.post(url, headers=self.BASE_HEADERS, data=data)
+        response_json = response.json()
+        self.siteKey = response_json['sitekey']
+        self.gid = response_json['gid']
+
     def is_email_valid(self):
         """验证邮箱有效性"""
         try:
@@ -82,6 +94,7 @@ class SteamRegistration:
                 emails = self._graph_get_email()
                 if emails is None:
                     raise ValueError("获取邮件失败")
+                print(emails)
             elif protocol == "IMAP_OAUTH":
                 self._get_access_token()
                 if not self.access_token:
@@ -150,8 +163,8 @@ class SteamRegistration:
             }
 
             params = {
-                '$top': 5, 
-                '$select': 'subject,body,receivedDateTime,from,hasAttachments', 
+                '$top': 5,
+                '$select': 'subject,body,receivedDateTime,from,hasAttachments',
                 '$orderby': 'receivedDateTime desc'
             }
 
@@ -222,6 +235,8 @@ class SteamRegistration:
 
         payload = json.dumps({
             "captchaType": "HCaptchaSteam",
+            "siteKey":self.siteKey,
+            "siteReferer":"https://store.steampowered.com/join/",
             "host": proxy_ip,
             "port": proxy_port,
             "login": username,
@@ -245,16 +260,16 @@ class SteamRegistration:
 
                 if status == 'Success':
                     resp = response_json.get('response')
-                    return resp.get('token'), resp.get('gid')
+                    return resp.get('token')
                 elif status == 'Fail':
-                    return None, None
+                    return None
                 elif status == 'Working':
                     time.sleep(retry_delay)
                     continue
             except Exception as e:
                 print(f"验证码处理错误: {e}")
                 time.sleep(retry_delay)
-        return None, None
+        return None
 
     def _get_init_id(self):
         """获取初始化ID"""
@@ -290,7 +305,7 @@ class SteamRegistration:
         data = {
             "email": self.email_data['email'],
             "captchagid": self.gid,
-            "captcha_text": self.token,
+            "captcha_text": self.token['captcha_key'],
             "elang": '0',
             "init_id": self.init_id,
             "guest": "false"
@@ -629,11 +644,11 @@ class SteamRegistration:
                     break
                 self.proxy_info = self.proxy_pool.get_proxy()
                 self._setup_session()
-                
+                self.get_siteKey()
                 self.update_status("进行人机验证")
                 self.cookie_str = "timezoneOffset=28800,0; Steam_Language=english; "
-                self.token, self.gid = self._get_gRecaptchaResponse()
-                if not self.gid:
+                self.token = self._get_gRecaptchaResponse()
+                if not self.token:
                     self.update_status("人机验证失败,更换iP重试")
                     raise Exception("人机验证失败")
                 self.update_status("人机验证通过")

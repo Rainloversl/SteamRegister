@@ -173,6 +173,12 @@ class RegistrationGUI:
             values = self.tree.item(self.thread_status[email])['values']
             if values[4]:  # 检查result列是否有值
                 completed_tasks.add(email)
+        succ_txt = os.path.join(self.script_dir, 'accounts_succ.txt')
+        if os.path.exists(self.email_path.get()):
+            with open(succ_txt, 'r', encoding='utf-8') as file:
+                for line in file:
+                    parts = line.strip().split("----")
+                    completed_tasks.add(parts[2])
         return completed_tasks    
     
     def _save_config(self):
@@ -214,22 +220,27 @@ class RegistrationGUI:
     def start_registration(self):
         """启动注册流程"""
         try:
-            if not self._validate_inputs():  # 添加输入验证
+            if not self._validate_inputs():
                 return
                 
             if not self._save_config():
                 return
                 
-            if hasattr(self, 'manager') and self.manager:
+            # 检查是否真的在运行，而不是仅仅存在实例
+            if hasattr(self, 'manager') and self.manager and self.manager._running:
                 messagebox.showwarning("警告", "任务已在运行中")
                 return
                 
             self.start_button.config(state="disabled")
             self.stop_button.config(state="normal")
             
-            threading.Thread(target=self._start_registration_thread, 
-                        daemon=True, 
-                        name="RegistrationThread").start()
+            # 启动注册线程
+            threading.Thread(
+                target=self._start_registration_thread,
+                daemon=True,
+                name="RegistrationThread"
+            ).start()
+            
         except Exception as e:
             messagebox.showerror("错误", f"启动失败: {str(e)}")
             self.start_button.config(state="normal")
@@ -238,9 +249,16 @@ class RegistrationGUI:
     def _start_registration_thread(self):
         """在新线程中启动注册"""
         try:
-            
-            completed_tasks = self.get_completed_tasks()                
-            
+            if hasattr(self, 'manager'):
+            # 确保旧的manager已经停止
+                try:
+                    self.manager.stop()
+                    self.manager = None
+                except:
+                    pass
+                
+            completed_tasks = self.get_completed_tasks()
+
             self.manager = GUIThreadManager(
                 self.config_path,
                 self.email_path.get(),
@@ -258,8 +276,13 @@ class RegistrationGUI:
 
     def stop_registration(self):
         """停止注册流程"""
-        if hasattr(self, 'manager'):
-            self.manager.stop() 
+        if hasattr(self, 'manager') and self.manager:
+            try:
+                self.manager.stop()
+                self.manager = None  # 清理manager实例
+            except Exception as e:
+                print(f"停止任务时出错: {e}")
+        
         self.start_button.config(state="normal")
         self.stop_button.config(state="disabled")
 
