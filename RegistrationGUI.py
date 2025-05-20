@@ -174,11 +174,17 @@ class RegistrationGUI:
             if values[4]:  # 检查result列是否有值
                 completed_tasks.add(email)
         succ_txt = os.path.join(self.script_dir, 'accounts_succ.txt')
-        if os.path.exists(self.email_path.get()):
+        if os.path.exists(succ_txt):
             with open(succ_txt, 'r', encoding='utf-8') as file:
                 for line in file:
                     parts = line.strip().split("----")
                     completed_tasks.add(parts[2])
+        erro_txt = os.path.join(self.script_dir, 'rgerror.txt')
+        if os.path.exists(erro_txt):
+            with open(erro_txt, 'r', encoding='utf-8') as file:
+                for line in file:
+                    parts = line.strip().split("----")
+                    completed_tasks.add(parts[0])
         return completed_tasks    
     
     def _save_config(self):

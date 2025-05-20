@@ -90,9 +90,12 @@ class SteamRegistration:
                 server.pass_(password)
                 server.quit()
             elif protocol == "GRAPH":
-                self._get_access_token()
+                self._get_access_token(action=1)
                 if not self.access_token:
                     raise ValueError("获取访问令牌失败")
+                server = self._authenticate_oauth2()
+                server.logout()
+                self._get_access_token()
                 emails = self._graph_get_email()
                 if emails is None:
                     raise ValueError("获取邮件失败")
@@ -115,14 +118,14 @@ class SteamRegistration:
             print(f"{email},邮箱验证失败: {e}")
             return False
             
-    def _get_access_token(self):
+    def _get_access_token(self,action=0):
         """获取OAuth访问令牌"""
         data = {
             'client_id': self.email_data['client_id'],
             'refresh_token': self.email_data['refresh_token'],
             'grant_type': 'refresh_token',
         }
-        if self.config['protocol'] == 'GRAPH':
+        if self.config['protocol'] == 'GRAPH' and action == 0:
             data['scope'] = 'https://graph.microsoft.com/.default'
         response = requests.post(
             'https://login.microsoftonline.com/consumers/oauth2/v2.0/token', 
@@ -144,7 +147,7 @@ class SteamRegistration:
         auth_bytes = auth_string.encode('ascii')
         auth_b64 = base64.b64encode(auth_bytes).decode('ascii')
         
-        if self.config['protocol'] == "IMAP_OAUTH":
+        if self.config['protocol'] in ["IMAP_OAUTH","GRAPH"] :
             server = imaplib.IMAP4_SSL('outlook.office365.com', 993)
             server.authenticate('XOAUTH2', lambda x: auth_string)
             return server
@@ -189,7 +192,7 @@ class SteamRegistration:
                     for line in f:
                         parts = line.strip().split('----')
                         if len(parts) == 4 and parts[0] == self.email_data['email']:
-                            parts[2] = refresh_token
+                            parts[3] = refresh_token
                             line = '----'.join(parts) + '\n'
                         temp.write(line)
                 os.replace(temp_path, file_path)
@@ -376,8 +379,8 @@ class SteamRegistration:
                 with open(file_path, "a", encoding='utf-8') as file:
                     if self.config['protocol'] in ["GRAPH", "IMAP_OAUTH", "POP3_OAUTH"]:
                         save_data = (f"{account_name}----{password}----{self.email_data['email']}----"
-                                   f"{self.email_data['password']}----{self.email_data['refresh_token']}----"
-                                   f"{self.email_data['client_id']}\n")
+                                   f"{self.email_data['password']}----{self.email_data['client_id']}----"
+                                   f"{self.email_data['refresh_token']}\n")
                     else:
                         save_data = (f"{account_name}----{password}----{self.email_data['email']}----"
                                    f"{self.email_data['password']}\n")
@@ -395,7 +398,7 @@ class SteamRegistration:
                     # 根据协议类型保存不同格式的错误信息
                     if self.config['protocol'] in ["GRAPH", "IMAP_OAUTH", "POP3_OAUTH"]:
                         error_data = (f"{self.email_data['email']}----{self.email_data['password']}----"
-                                    f"{self.email_data['refresh_token']}----{self.email_data['client_id']}\n")
+                                    f"{self.email_data['client_id']}----{self.email_data['refresh_token']}\n")
                     else:
                         error_data = f"{self.email_data['email']}----{self.email_data['password']}\n"
                     file.write(error_data)

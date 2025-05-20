@@ -43,8 +43,8 @@ class ThreadManager:
             return {
                 'email': parts[0],
                 'password': parts[1],
-                'client_id': parts[3],
-                'refresh_token': parts[2]
+                'client_id': parts[2],
+                'refresh_token': parts[3]
             }
         raise ValueError("Invalid email credentials format")
 
