@@ -38,7 +38,7 @@ class SteamRegistration:
         self.BASE_HEADERS = {
             "Accept": "*/*",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
             "Referer": "https://store.steampowered.com/join/",
             "Origin": "https://store.steampowered.com",
             "Connection": "keep-alive",
@@ -46,7 +46,7 @@ class SteamRegistration:
             "Sec-Fetch-Dest": "empty",
             "Sec-Fetch-Mode": "cors",
             "Sec-Fetch-Site": "same-origin",
-            "sec-ch-ua": '"Microsoft Edge";v="125"',
+            "sec-ch-ua": '"Google Chrome";v="146"',
             "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-platform": '"Windows"'
         }
