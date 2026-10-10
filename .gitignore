@@ -22,3 +22,4 @@ rgerror.txt
 .github/*
 !.github/workflows/
 
+jobs.json
