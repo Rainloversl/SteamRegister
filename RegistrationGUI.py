@@ -96,10 +96,14 @@ class RegistrationGUI:
         self.stop_button.pack(side="left", padx=5)
     
     def _load_config(self):
-        """加载配置文件"""
+        """加载配置文件（环境变量 CAPTCHA_API_KEY 优先于 config.json 中的 clientKey）"""
         try:
             with open(self.config_path, 'r') as f:
-                return json.load(f)
+                config = json.load(f)
+            env_key = os.environ.get('CAPTCHA_API_KEY')
+            if env_key:
+                config['clientKey'] = env_key
+            return config
         except Exception as e:
             messagebox.showerror("错误", f"加载配置文件失败: {str(e)}")
             return {}  

@@ -27,9 +27,13 @@ class ThreadManager:
                 raise ValueError(f"配置缺少必要字段: {field}")
     
     def _load_config(self, config_path):
-        """加载配置"""
+        """加载配置（环境变量 CAPTCHA_API_KEY 优先于 config.json 中的 clientKey）"""
         with open(config_path, 'r') as f:
-            return json.load(f)
+            config = json.load(f)
+        env_key = os.environ.get('CAPTCHA_API_KEY')
+        if env_key:
+            config['clientKey'] = env_key
+        return config
             
     def parse_email_credentials(self, line):
         """解析邮件凭据"""

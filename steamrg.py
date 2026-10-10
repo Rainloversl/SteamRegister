@@ -204,7 +204,7 @@ def get_init_id(session, cookie_str):
 def get_gRecaptchaResponse(proxy_ip,proxy_port,username,password):
     createTask_url = "https://api.captcha-run.com/v2/tasks"
     headers = {
-        'Authorization': clientKey,
+        'Authorization': f'Bearer {clientKey}',
         'Content-Type': 'application/json'
     }
 
@@ -633,6 +633,10 @@ def get_ip():
 def read_config(filename):
     with open(filename, 'r') as f:
         config = json.load(f)
+    # 环境变量 CAPTCHA_API_KEY 优先于 config.json 中的 clientKey（避免密钥入库）
+    env_key = os.environ.get('CAPTCHA_API_KEY')
+    if env_key:
+        config['clientKey'] = env_key
     return config
 
 def log_error(email_data):
@@ -701,5 +705,7 @@ for proxy_ip in proxy_ips:
 success_proxy_queue = queue.Queue()
 
 executor = ThreadPoolExecutor(max_workers=executornum)
-start_tasks()
-executor.shutdown(wait=True)
+
+if __name__ == "__main__":
+    start_tasks()
+    executor.shutdown(wait=True)

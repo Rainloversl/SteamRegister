@@ -1,2 +1,6 @@
+.env
 __pycache__/
 *.pyc
+
+# GitHub Actions 工作流（本地保留，需有 workflow 权限的 token 才能推送）
+.github/

@@ -10,19 +10,46 @@ Steam 账号自动注册工具，支持多种邮箱协议（IMAP / POP3 / Micros
 | `ThreadManager.py` | 线程管理器，负责读取邮箱列表、调度并发任务 |
 | `SteamRegistration.py` | 核心注册逻辑（验证码识别、邮箱收信、账号保存） |
 | `ProxyPool.py` | 代理 IP 池管理，支持失败重试与成功标记 |
-| `steamrg.py` | 原始无界面版本，功能与 GUI 版一致，后续不再维护 |
-| `config.json` | 基础配置文件 |
-| `proxy_ips.txt` | 代理 IP 列表 |
-| `email_password.txt` | 邮箱账号列表 |
+| `steamrg.py` | 原始无界面版本，功能与 GUI 版一致 |
+| `cli.py` | 命令行包装器（可指定配置/邮箱文件、线程数） |
+| `config.json` | 基础配置文件（本地私有，不入库；模板见 `config.example.json`） |
+| `config.example.json` | 配置模板 |
+| `.env.example` | 环境变量模板（`CAPTCHA_API_KEY`） |
+| `proxy_ips.txt` | 代理 IP 列表（本地私有，不入库） |
+| `email_password.txt` | 邮箱账号列表（本地私有，不入库） |
+| `pyproject.toml` | 包定义 / 依赖 / ruff 配置 |
+| `install.sh` / `install.ps1` | Linux/macOS 与 Windows 一键安装脚本 |
+| `build.spec` | PyInstaller 打包配置 |
+| `tests/` | 单元测试（配置解析、凭据解析、协议合规检查） |
+| `.github/workflows/ci.yml` | GitHub Actions CI（多版本测试 + lint + Release 打包） |
 
 ## 安装
 
+要求 Python >= 3.9。
+
+### 一键安装
+
 ```bash
-# 建议使用 Python 3.8+
+# Linux / macOS
+./install.sh
+
+# Windows (PowerShell)
+.\install.ps1
+```
+
+脚本会自动创建 `.venv` 虚拟环境、安装依赖，并从模板生成 `config.json` 与 `.env`。
+
+### 手动安装
+
+```bash
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-依赖：`beautifulsoup4`、`requests`（GUI 使用标准库 `tkinter`，无需额外安装）。
+依赖：`beautifulsoup4`、`requests`（GUI 使用标准库 `tkinter`；Linux 下如缺失需安装系统包 `python3-tk`）。
+
+以包方式安装（可选）：`pip install -e .[dev]`，随后可用 `steam-register` 命令启动无界面模式。
 
 ## 使用方法
 
@@ -90,7 +117,12 @@ python RegistrationGUI.py
 
 # 无界面原始版本
 python steamrg.py
+
+# CLI 包装（可指定配置/邮箱文件与线程数）
+python cli.py --config config.json --emails email_password.txt --workers 3
 ```
+
+密钥可通过环境变量 `CAPTCHA_API_KEY` 提供（优先于 config.json 中的 clientKey，避免明文入库）。
 
 GUI 支持在界面中修改配置、选择邮箱/代理文件、启动/停止注册，并实时显示每个邮箱的注册状态。
 
@@ -99,6 +131,23 @@ GUI 支持在界面中修改配置、选择邮箱/代理文件、启动/停止�
 - `accounts_succ.txt` — 注册成功的账号（格式：`账号----密码----邮箱----...`）
 - `accounts_fail.txt` — 注册失败的账号
 - `rgerror.txt` — 错误日志
+
+## 开发与测试
+
+```bash
+pip install -e ".[dev]"
+
+# 运行测试
+python -m unittest discover -s tests -v    # 或 pytest tests/
+
+# 代码检查
+ruff check .
+
+# 打包为独立 exe（Windows，GUI 版使用 build.spec；CLI 版如下）
+pyinstaller --onefile --console steamrg.py
+```
+
+CI：`.github/workflows/ci.yml` 在 push / PR 时自动执行多版本 Python（3.9/3.11/3.12）语法检查与单元测试；打 `v*` 标签时自动构建 Windows exe 产物。
 
 ## 注意事项
 

@@ -232,7 +232,7 @@ class SteamRegistration:
         """获取验证码响应"""
         createTask_url = "https://api.captcha-run.com/v2/tasks"
         headers = {
-            'Authorization': self.config['clientKey'],
+            'Authorization': f"Bearer {self.config['clientKey']}",
             'Content-Type': 'application/json'
         }
 

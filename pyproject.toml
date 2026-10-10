@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "steam-register"
+version = "1.0.0"
+description = "Steam 账号自动注册工具（HCaptchaSteam 打码协议），支持 GUI 与无界面两种运行方式"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Rainloversl" }]
+keywords = ["steam", "register", "captcha", "hcaptcha"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "beautifulsoup4==4.12.3",
+    "requests==2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+steam-register = "cli:main"
+
+[tool.setuptools]
+py-modules = ["cli", "steamrg", "ProxyPool", "ThreadManager", "SteamRegistration", "RegistrationGUI"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:libtmux -q"
