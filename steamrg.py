@@ -126,7 +126,7 @@ def ajaxverifyemail(session, cookie_str, email, token, gid, init_id):
         "Sec-Fetch-Dest": "empty",
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": "same-origin",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
         "X-Requested-With": "XMLHttpRequest",
         "^sec-ch-ua": "^\\^Microsoft",
         "sec-ch-ua-mobile": "?0",
@@ -157,7 +157,7 @@ def get_init_id(session, cookie_str):
         "sec-fetch-site": "cross-site",
         "sec-fetch-user": "?1",
         "upgrade-insecure-requests": "1",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
         "Accept": "text/css,*/*;q=0.1",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
         "Connection": "keep-alive",
@@ -202,25 +202,24 @@ def get_init_id(session, cookie_str):
 
 
 def get_gRecaptchaResponse(proxy_ip,proxy_port,username,password):
-    createTask_url = "https://api.captcha.run/v2/tasks"
+    createTask_url = "https://api.captcha-run.com/v2/tasks"
     headers = {
         'Authorization': clientKey,
         'Content-Type': 'application/json'
     }
 
+    # 协议要求：暂禁止传递代理（host/port/login/password），否则不会成功
     payload = json.dumps({
         "captchaType": "HCaptchaSteam",
-        "host":proxy_ip,
-        "port":proxy_port,
-        "login":username,
-        "password":password,
+        "siteKey": "e18a349a-46c2-46a0-87a8-74be79345c92",
+        "siteReferer": "https://store.steampowered.com/join/",
         "developer": "5888a224-d520-4c38-aa71-c8411dd62e8c" 
     })
 
     response = requests.post(createTask_url, headers=headers, data=payload)
     taskId = response.json()['taskId']
 
-    getTaskResult_url = "https://api.captcha.run/v2/tasks/"+taskId
+    getTaskResult_url = "https://api.captcha-run.com/v2/tasks/"+taskId
 
     return get_task_result(getTaskResult_url, headers)
 
@@ -271,7 +270,7 @@ def ajax_check_email_verified(g_creationSessionID,cookie_str,session,email_data)
         "Sec-Fetch-Dest": "empty",
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": "same-origin",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
         "X-Requested-With": "XMLHttpRequest",
         "^sec-ch-ua": "^\\^Microsoft",
         "sec-ch-ua-mobile": "?0",
@@ -487,7 +486,7 @@ def fetch_email_verification_url(email_data, session, g_creationSessionID):
             "Sec-Fetch-Site": "none",
             "Sec-Fetch-User": "?1",
             "Upgrade-Insecure-Requests": "1",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
             "^sec-ch-ua": "^\\^Microsoft",
             "sec-ch-ua-mobile": "?0",
             "^sec-ch-ua-platform": "^\\^Windows^^^",
@@ -571,7 +570,7 @@ def create_steam_account(accountname, pass_word, lt, g_creationSessionID, g_embe
         "Sec-Fetch-Dest": "empty",
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": "same-origin",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
         "X-Requested-With": "XMLHttpRequest",
         "^sec-ch-ua": "^\\^Microsoft",
         "sec-ch-ua-mobile": "?0",

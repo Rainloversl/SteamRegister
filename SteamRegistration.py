@@ -230,27 +230,24 @@ class SteamRegistration:
 
     def _get_gRecaptchaResponse(self):
         """获取验证码响应"""
-        proxy_ip, proxy_port, username, password = self.proxy_info.split(":")
-        createTask_url = "https://api.captcha.run/v2/tasks"
+        createTask_url = "https://api.captcha-run.com/v2/tasks"
         headers = {
             'Authorization': self.config['clientKey'],
             'Content-Type': 'application/json'
         }
 
+        # 协议要求：暂禁止传递代理（host/port/login/password），否则不会成功
+        # 协议要求：siteKey 固定为 e18a349a-46c2-46a0-87a8-74be79345c92
         payload = json.dumps({
             "captchaType": "HCaptchaSteam",
-            "siteKey":self.siteKey,
-            "siteReferer":"https://store.steampowered.com/join/",
-            "host": proxy_ip,
-            "port": proxy_port,
-            "login": username,
-            "password": password,
-            "developer": "5888a224-d520-4c38-aa71-c8411dd62e8c" 
+            "siteKey": "e18a349a-46c2-46a0-87a8-74be79345c92",
+            "siteReferer": "https://store.steampowered.com/join/",
+            "developer": "5888a224-d520-4c38-aa71-c8411dd62e8c"
         })
 
         response = requests.post(createTask_url, headers=headers, data=payload)
         taskId = response.json()['taskId']
-        return self._get_task_result(f"https://api.captcha.run/v2/tasks/{taskId}", headers)
+        return self._get_task_result(f"https://api.captcha-run.com/v2/tasks/{taskId}", headers)
 
     def _get_task_result(self, getTaskResult_url, headers):
         """获取验证码任务结果"""
