@@ -1,6 +1,6 @@
 # Steam 注册工具打包脚本（PyInstaller）
 # 用法: pyinstaller build.spec
-name = "SteamRegister"
+name = "SteamRegister-GUI"
 
 a = Analysis(
     ["RegistrationGUI.py"],
