@@ -71,10 +71,14 @@ jobs:
           if (-not (Test-Path dist/SteamRegister-GUI.exe)) { throw "GUI exe not found" }
           if (-not (Test-Path dist/SteamRegister-CLI.exe)) { throw "CLI exe not found" }
           Get-ChildItem dist/*.exe
+      - name: Check release secret presence
+        env:
+          HAS_SECRET: ${{ secrets.GH_RELEASE_PAT != '' }}
+        run: echo "GH_RELEASE_PAT present = $HAS_SECRET (true/false; false means falling back to GITHUB_TOKEN)"
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_RELEASE_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GH_RELEASE_PAT || github.token }}
         uses: softprops/action-gh-release@v2
         with:
           files: |
