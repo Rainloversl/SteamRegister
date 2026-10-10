@@ -21,7 +21,7 @@ Steam 账号自动注册工具，支持多种邮箱协议（IMAP / POP3 / Micros
 | `install.sh` / `install.ps1` | Linux/macOS 与 Windows 一键安装脚本 |
 | `build.spec` | PyInstaller 打包配置 |
 | `tests/` | 单元测试（配置解析、凭据解析、协议合规检查） |
-| `.github/workflows/ci.yml` | GitHub Actions CI（多版本测试 + lint + Release 打包） |
+| `.github/workflows/ci.yml`* | GitHub Actions CI 配置（多版本测试 + lint + Release 打包；因当前 PAT 无 workflow 权限暂未随仓库推送，文件已在本地生成，授权后可直接提交） |
 
 ## 安装
 
@@ -147,7 +147,9 @@ ruff check .
 pyinstaller --onefile --console steamrg.py
 ```
 
-CI：`.github/workflows/ci.yml` 在 push / PR 时自动执行多版本 Python（3.9/3.11/3.12）语法检查与单元测试；打 `v*` 标签时自动构建 Windows exe 产物。
+CI：`.github/workflows/ci.yml`（本地已生成，因当前 PAT 无 `workflow` scope 暂未推送；生成新 token 时勾选 `workflow` 权限后执行 `git add -f .github && git commit && git push` 即可启用）在 push / PR 时自动执行多版本 Python（3.9/3.11/3.12）语法检查与单元测试；打 `v*` 标签时自动构建 Windows exe 产物。
+
+安全说明：`config.json`、`email_password.txt`、`proxy_ips.txt` 等含真实密钥/账号的文件已从 git 跟踪中移除并加入 `.gitignore`，仅保留 `config.example.json` 模板；API 密钥推荐通过环境变量 `CAPTCHA_API_KEY` 注入（优先级高于配置文件）。历史提交中曾包含旧 config.json，若其中 API Key 为真实密钥，请在验证码平台重置。
 
 ## 注意事项
 

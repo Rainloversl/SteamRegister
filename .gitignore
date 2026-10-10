@@ -1,6 +1,22 @@
-.env
+# Python
 __pycache__/
 *.pyc
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# 敏感配置（请勿提交真实密钥/账号）
+config.json
+.env
+email_password.txt
+proxy_ips.txt
+accounts_succ.txt
+accounts_fail.txt
+rgerror.txt
 
 # GitHub Actions 工作流（本地保留，需有 workflow 权限的 token 才能推送）
 .github/
