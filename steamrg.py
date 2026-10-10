@@ -630,9 +630,25 @@ def get_ip():
             print(f"获取代理IP失败: {e}")
             time.sleep(5)
 
+DEFAULT_CONFIG = {
+    'clientKey': '',
+    'email_url': '',
+    'ssl': True,
+    'executornum': 10,
+    'protocol': 'IMAP',
+}
+
+
 def read_config(filename):
-    with open(filename, 'r') as f:
-        config = json.load(f)
+    if os.path.exists(filename):
+        with open(filename, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+    else:
+        # 配置文件缺失时回退到内置默认值，保证模块可被安全导入（测试/打包场景）；
+        # 实际运行缺少配置会在任务开始时给出明确报错。
+        config = {}
+    for key, value in DEFAULT_CONFIG.items():
+        config.setdefault(key, value)
     # 环境变量 CAPTCHA_API_KEY 优先于 config.json 中的 clientKey（避免密钥入库）
     env_key = os.environ.get('CAPTCHA_API_KEY')
     if env_key:
@@ -673,7 +689,14 @@ def parse_email_credentials(email_password_str):
 
 
 def start_tasks():
-    with open(email_password_path, "r") as file:
+    if not os.path.exists(email_password_path):
+        print(f"错误: 未找到邮箱配置文件 {email_password_path}")
+        print("请参考 README 准备 email_password.txt，并从 config.example.json 复制生成 config.json")
+        raise SystemExit(1)
+    if not clientKey:
+        print("错误: 未配置打码平台密钥（config.json 的 clientKey 或环境变量 CAPTCHA_API_KEY）")
+        raise SystemExit(1)
+    with open(email_password_path, "r", encoding="utf-8") as file:
         for line in file:
             try:
                 email_data = parse_email_credentials(line.strip())
@@ -696,8 +719,11 @@ use_ssl = config_data['ssl']
 executornum = config_data['executornum']
 protocol = config_data['protocol']
 
-with open(proxy_ips_path, "r") as file:
-    proxy_ips = [line.strip() for line in file if line.strip()]
+if os.path.exists(proxy_ips_path):
+    with open(proxy_ips_path, "r", encoding="utf-8") as file:
+        proxy_ips = [line.strip() for line in file if line.strip()]
+else:
+    proxy_ips = []
 
 proxy_queue = queue.Queue()
 for proxy_ip in proxy_ips:
